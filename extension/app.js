@@ -29,8 +29,10 @@ let quickLinks = [];
 let bookmarkFolders = [];
 let bookmarkBoardItems = [];
 let bookmarkBoardCurrentFolder = null;
+let bookmarkBoardStateById = {};
 let bookmarkFolderSearchQuery = '';
 let bookmarkBoardSearchQuery = '';
+let bookmarkBoardSearchQueries = {};
 let isBookmarkBoardCollapsed = false;
 let currentLanguage = 'zh-CN';
 let currentTheme = 'light';
@@ -43,6 +45,7 @@ let currentSettingsPanel = 'appearance';
 let quickLinksOpenMode = 'current-tab';
 let bookmarkOpenMode = 'new-tab';
 let bookmarkBoardConfig = {
+  boards: [],
   folderId: '',
   folderTitle: '',
   currentFolderId: '',
@@ -52,6 +55,7 @@ let currentOpenTabsView = 'domains';
 let draggedWindowTabState = null;
 let dashboardRefreshTimer = null;
 let activeQuickLinkMenuId = '';
+let pendingConfirmAction = null;
 
 const LANGUAGE_STORAGE_KEY = 'uiLanguage';
 const THEME_STORAGE_KEY = 'uiTheme';
@@ -103,6 +107,12 @@ const MESSAGES = {
     bookmarkBoardExpand: '展开',
     bookmarkBoardDelete: '删除书签',
     bookmarkBoardDeleteConfirm: title => `要删除书签“${title}”吗？`,
+    bookmarkBoardAdd: '添加目录',
+    bookmarkBoardRemove: '移除工作台',
+    bookmarkBoardRemoveConfirm: title => `要从首页移除“${title}”这个书签工作台吗？不会删除原始书签。`,
+    confirmDialogEyebrow: '请确认这一步操作',
+    confirmDialogCancel: '取消',
+    confirmDialogConfirm: '确定',
     quickLinksAddButton: '添加入口',
     quickLinksEmptyTitle: '固定几个常用网站，打开更快。',
     quickLinksEmptySubtitle: '',
@@ -285,6 +295,12 @@ const MESSAGES = {
     bookmarkBoardExpand: 'Expand',
     bookmarkBoardDelete: 'Delete bookmark',
     bookmarkBoardDeleteConfirm: title => `Delete bookmark "${title}"?`,
+    bookmarkBoardAdd: 'Add folder',
+    bookmarkBoardRemove: 'Remove board',
+    bookmarkBoardRemoveConfirm: title => `Remove "${title}" from the homepage? This will not delete the original bookmarks.`,
+    confirmDialogEyebrow: 'Please confirm this action',
+    confirmDialogCancel: 'Cancel',
+    confirmDialogConfirm: 'Confirm',
     quickLinksTitle: 'Quick links',
     quickLinksSubtitle: '',
     quickLinksAddButton: 'Add link',
@@ -740,30 +756,74 @@ async function setQuickLinksOpenModePreference(mode) {
 function normalizeBookmarkBoardConfig(config = {}) {
   const folderId = String(config.folderId || '').trim();
   const folderTitle = String(config.folderTitle || '').trim();
+  const legacyBoard = folderId
+    ? [{
+      id: folderId,
+      folderId,
+      folderTitle,
+      currentFolderId: String(config.currentFolderId || folderId).trim(),
+      currentFolderTitle: String(config.currentFolderTitle || folderTitle).trim(),
+      collapsed: false,
+    }]
+    : [];
+  const sourceBoards = Array.isArray(config.boards) && config.boards.length > 0 ? config.boards : legacyBoard;
+  const seen = new Set();
+  const boards = sourceBoards
+    .map((board, index) => normalizeBookmarkBoardConfigEntry(board, index))
+    .filter(board => {
+      if (!board.folderId || seen.has(board.folderId)) return false;
+      seen.add(board.folderId);
+      return true;
+    });
+  const primary = boards[0] || {};
   return {
+    boards,
+    folderId: primary.folderId || folderId,
+    folderTitle: primary.folderTitle || folderTitle,
+    currentFolderId: primary.currentFolderId || String(config.currentFolderId || primary.folderId || folderId).trim(),
+    currentFolderTitle: primary.currentFolderTitle || String(config.currentFolderTitle || primary.folderTitle || folderTitle).trim(),
+  };
+}
+
+function normalizeBookmarkBoardConfigEntry(board = {}, index = 0) {
+  const folderId = String(board.folderId || board.id || '').trim();
+  const folderTitle = String(board.folderTitle || board.title || '').trim();
+  const currentFolderId = String(board.currentFolderId || folderId).trim();
+  const currentFolderTitle = String(board.currentFolderTitle || folderTitle).trim();
+  return {
+    id: String(board.id || folderId || `bookmark-board-${index}`).trim(),
     folderId,
     folderTitle,
-    currentFolderId: String(config.currentFolderId || folderId).trim(),
-    currentFolderTitle: String(config.currentFolderTitle || folderTitle).trim(),
+    currentFolderId,
+    currentFolderTitle,
+    collapsed: board.collapsed === true,
   };
+}
+
+function getBookmarkBoardEntries() {
+  return Array.isArray(bookmarkBoardConfig.boards) ? bookmarkBoardConfig.boards : [];
 }
 
 async function loadBookmarkBoardConfigPreference() {
   try {
     const { [BOOKMARK_BOARD_CONFIG_STORAGE_KEY]: storedConfig = {} } = await chrome.storage.local.get(BOOKMARK_BOARD_CONFIG_STORAGE_KEY);
     bookmarkBoardConfig = normalizeBookmarkBoardConfig(storedConfig);
+    syncLegacyBookmarkBoardFields();
   } catch {
     bookmarkBoardConfig = normalizeBookmarkBoardConfig();
+    syncLegacyBookmarkBoardFields();
   }
 }
 
 async function saveBookmarkBoardConfigPreference(config) {
   bookmarkBoardConfig = normalizeBookmarkBoardConfig(config);
+  syncLegacyBookmarkBoardFields();
   await chrome.storage.local.set({ [BOOKMARK_BOARD_CONFIG_STORAGE_KEY]: bookmarkBoardConfig });
 }
 
 async function clearBookmarkBoardConfigPreference() {
   bookmarkBoardConfig = normalizeBookmarkBoardConfig();
+  syncLegacyBookmarkBoardFields();
   await chrome.storage.local.remove(BOOKMARK_BOARD_CONFIG_STORAGE_KEY);
 }
 
@@ -783,10 +843,14 @@ async function setBookmarkOpenModePreference(mode) {
 
 async function loadBookmarkBoardCollapsedPreference() {
   try {
-    const { [BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY]: storedCollapsed = false } = await chrome.storage.local.get(BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY);
-    isBookmarkBoardCollapsed = storedCollapsed === true;
+    const stored = await chrome.storage.local.get(BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY);
+    if (Object.prototype.hasOwnProperty.call(stored, BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY)) {
+      isBookmarkBoardCollapsed = stored[BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY] === true;
+    } else {
+      isBookmarkBoardCollapsed = !bookmarkBoardConfig.folderId;
+    }
   } catch {
-    isBookmarkBoardCollapsed = false;
+    isBookmarkBoardCollapsed = !bookmarkBoardConfig.folderId;
   }
 }
 
@@ -891,6 +955,7 @@ function applyStaticText() {
   const bookmarkBoardSubtitle = document.getElementById('bookmarkBoardSubtitle');
   const bookmarkBoardSearchInput = document.getElementById('bookmarkBoardSearchInput');
   const bookmarkBoardToggleBtn = document.getElementById('bookmarkBoardToggleBtn');
+  const bookmarkBoardAddBtn = document.getElementById('bookmarkBoardAddBtn');
   const openTabsViewSwitcher = document.getElementById('openTabsViewSwitcher');
   const openTabsDomainViewBtn = document.getElementById('openTabsDomainViewBtn');
   const openTabsWindowViewBtn = document.getElementById('openTabsWindowViewBtn');
@@ -945,6 +1010,11 @@ function applyStaticText() {
   if (bookmarkBoardTitle) bookmarkBoardTitle.textContent = t('bookmarkBoardTitle');
   if (bookmarkBoardSubtitle) bookmarkBoardSubtitle.textContent = t('bookmarkBoardSubtitle');
   if (bookmarkBoardSearchInput) bookmarkBoardSearchInput.placeholder = t('bookmarkBoardSearchPlaceholder');
+  if (bookmarkBoardAddBtn) {
+    bookmarkBoardAddBtn.textContent = t('bookmarkBoardAdd');
+    bookmarkBoardAddBtn.title = t('bookmarkBoardAdd');
+    bookmarkBoardAddBtn.setAttribute('aria-label', t('bookmarkBoardAdd'));
+  }
   if (bookmarkBoardToggleBtn) {
     const label = isBookmarkBoardCollapsed ? t('bookmarkBoardExpand') : t('bookmarkBoardCollapse');
     bookmarkBoardToggleBtn.textContent = label;
@@ -1164,6 +1234,7 @@ function normalizeBookmarkFolder(folder, index = 0) {
     id: String(folder.id || ''),
     title: String(folder.title || '').trim() || (folder.id ? `Folder ${folder.id}` : ''),
     path: String(folder.path || '').trim(),
+    depth: Number.isFinite(folder.depth) ? folder.depth : 0,
     order: Number.isFinite(folder.order) ? folder.order : index,
   };
 }
@@ -1208,6 +1279,7 @@ async function loadBookmarkFolders() {
         id: node.id,
         title,
         path: nextParents.join(' / '),
+        depth: nextParents.length,
       }, folders.length));
     }
 
@@ -1244,12 +1316,15 @@ function sortBookmarkBoardItems(items) {
   });
 }
 
-async function loadBookmarkBoardItems() {
-  const targetFolderId = bookmarkBoardConfig.currentFolderId || bookmarkBoardConfig.folderId;
+async function loadBookmarkBoardItems(board = bookmarkBoardConfig) {
+  const targetFolderId = board.currentFolderId || board.folderId;
   if (!targetFolderId || !chrome?.bookmarks?.getSubTree) {
     bookmarkBoardItems = [];
     bookmarkBoardCurrentFolder = null;
-    return bookmarkBoardItems;
+    return {
+      items: bookmarkBoardItems,
+      currentFolder: bookmarkBoardCurrentFolder,
+    };
   }
 
   try {
@@ -1262,7 +1337,7 @@ async function loadBookmarkBoardItems() {
 
     bookmarkBoardCurrentFolder = {
       id: String(folderNode.id || ''),
-      title: String(folderNode.title || bookmarkBoardConfig.folderTitle || '').trim(),
+      title: String(folderNode.title || board.folderTitle || '').trim(),
       parentId: String(folderNode.parentId || ''),
     };
 
@@ -1292,12 +1367,18 @@ async function loadBookmarkBoardItems() {
     });
 
     bookmarkBoardItems = sortBookmarkBoardItems(entries);
-    return bookmarkBoardItems;
+    return {
+      items: bookmarkBoardItems,
+      currentFolder: bookmarkBoardCurrentFolder,
+    };
   } catch (err) {
     console.warn('[tab-out] Could not load bookmark board items:', err);
     bookmarkBoardItems = [];
     bookmarkBoardCurrentFolder = null;
-    return bookmarkBoardItems;
+    return {
+      items: bookmarkBoardItems,
+      currentFolder: bookmarkBoardCurrentFolder,
+    };
   }
 }
 
@@ -1520,7 +1601,7 @@ function renderBookmarkFolderOption(folder) {
   const safeId = escapeHtml(folder.id);
   const safeTitle = escapeHtml(getBookmarkFolderDisplayName(folder));
   const safePath = escapeHtml(getBookmarkFolderDisplayPath(folder));
-  const isActive = bookmarkBoardConfig.folderId === folder.id;
+  const isActive = getBookmarkBoardEntries().some(board => board.folderId === folder.id);
 
   return `
     <button type="button" class="bookmark-folder-option${isActive ? ' is-active' : ''}" data-action="select-bookmark-folder" data-bookmark-folder-id="${safeId}" aria-pressed="${isActive ? 'true' : 'false'}">
@@ -1528,6 +1609,97 @@ function renderBookmarkFolderOption(folder) {
       <span class="bookmark-folder-option-path">${safePath}</span>
       ${isActive ? `<span class="bookmark-folder-option-badge">${escapeHtml(t('settingsBookmarkFolderSelected'))}</span>` : ''}
     </button>`;
+}
+
+function getBookmarkBoardEntry(boardId) {
+  return getBookmarkBoardEntries().find(board => board.id === boardId || board.folderId === boardId) || null;
+}
+
+function syncLegacyBookmarkBoardFields() {
+  const primary = getBookmarkBoardEntries()[0] || {};
+  bookmarkBoardConfig = {
+    ...bookmarkBoardConfig,
+    folderId: primary.folderId || '',
+    folderTitle: primary.folderTitle || '',
+    currentFolderId: primary.currentFolderId || primary.folderId || '',
+    currentFolderTitle: primary.currentFolderTitle || primary.folderTitle || '',
+  };
+}
+
+function getBookmarkBoardSearchQuery(boardId) {
+  return bookmarkBoardSearchQueries[boardId] || '';
+}
+
+function setBookmarkBoardSearchQuery(boardId, query) {
+  bookmarkBoardSearchQueries = {
+    ...bookmarkBoardSearchQueries,
+    [boardId]: query || '',
+  };
+  if (boardId === bookmarkBoardConfig.folderId) bookmarkBoardSearchQuery = query || '';
+}
+
+async function setBookmarkBoardRootFolder(folderId, { notify = true } = {}) {
+  const folder = bookmarkFolders.find(item => item.id === folderId);
+  if (!folder) return false;
+
+  const existingBoards = getBookmarkBoardEntries();
+  if (existingBoards.some(board => board.folderId === folder.id)) {
+    await renderBookmarkBoardSection();
+    if (notify) showToast(t('toastBookmarkFolderSaved'));
+    return true;
+  }
+  const nextBoard = normalizeBookmarkBoardConfigEntry({
+    id: folder.id,
+    folderId: folder.id,
+    folderTitle: getBookmarkFolderDisplayPath(folder),
+    currentFolderId: folder.id,
+    currentFolderTitle: getBookmarkFolderDisplayName(folder),
+  });
+  const boards = [...existingBoards, nextBoard];
+
+  await saveBookmarkBoardConfigPreference({
+    ...bookmarkBoardConfig,
+    boards,
+  });
+  await setBookmarkBoardCollapsedPreference(false);
+  bookmarkBoardSearchQuery = '';
+  setBookmarkBoardSearchQuery(folder.id, '');
+  bookmarkBoardItems = [];
+  bookmarkBoardCurrentFolder = null;
+  await renderBookmarkFolderPicker();
+  await renderBookmarkBoardSection();
+  if (notify) showToast(t('toastBookmarkFolderSaved'));
+  return true;
+}
+
+async function updateBookmarkBoardEntry(boardId, patch = {}) {
+  const boards = getBookmarkBoardEntries().map(board => (
+    board.id === boardId || board.folderId === boardId
+      ? normalizeBookmarkBoardConfigEntry({ ...board, ...patch })
+      : board
+  ));
+  await saveBookmarkBoardConfigPreference({
+    ...bookmarkBoardConfig,
+    boards,
+  });
+}
+
+async function removeBookmarkBoardEntry(boardId) {
+  const board = getBookmarkBoardEntry(boardId);
+  if (!board) return false;
+
+  const boards = getBookmarkBoardEntries().filter(item => item.id !== board.id && item.folderId !== board.folderId);
+  await saveBookmarkBoardConfigPreference({
+    ...bookmarkBoardConfig,
+    boards,
+  });
+  delete bookmarkBoardStateById[board.id];
+  delete bookmarkBoardSearchQueries[board.id];
+  delete bookmarkBoardSearchQueries[board.folderId];
+  await renderBookmarkFolderPicker();
+  await renderBookmarkBoardSection();
+  showToast(t('toastBookmarkFolderSaved'));
+  return true;
 }
 
 async function renderBookmarkFolderPicker() {
@@ -1559,14 +1731,15 @@ async function renderBookmarkFolderPicker() {
   listEl.style.display = hasFolders ? 'grid' : 'none';
   emptyEl.style.display = hasFolders ? 'none' : 'block';
   emptyEl.textContent = t('settingsBookmarkFolderEmpty');
-  clearBtn.hidden = !bookmarkBoardConfig.folderId;
+  clearBtn.hidden = getBookmarkBoardEntries().length === 0;
   clearBtn.textContent = t('settingsBookmarkFolderClear');
 }
 
-function renderBookmarkBoardCard(item) {
+function renderBookmarkBoardCard(item, boardId = '') {
   const safeTitle = escapeHtml(item.title);
   const safeUrl = escapeHtml(item.url);
   const safeId = escapeHtml(item.id);
+  const safeBoardId = escapeHtml(boardId);
   const faviconUrl = escapeHtml(getFaviconSource(item.url, item.title, 32));
 
   return `
@@ -1580,7 +1753,7 @@ function renderBookmarkBoardCard(item) {
           <div class="bookmark-board-card-title">${safeTitle}</div>
         </div>
       </button>
-      <button type="button" class="bookmark-board-delete" data-action="delete-bookmark-board-item" data-bookmark-id="${safeId}" title="${escapeHtml(t('bookmarkBoardDelete'))}" aria-label="${escapeHtml(t('bookmarkBoardDelete'))}">
+      <button type="button" class="bookmark-board-delete" data-action="delete-bookmark-board-item" data-bookmark-id="${safeId}" data-bookmark-board-id="${safeBoardId}" title="${escapeHtml(t('bookmarkBoardDelete'))}" aria-label="${escapeHtml(t('bookmarkBoardDelete'))}">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.1" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
@@ -1588,13 +1761,14 @@ function renderBookmarkBoardCard(item) {
     </div>`;
 }
 
-function renderBookmarkBoardFolderCard(item) {
+function renderBookmarkBoardFolderCard(item, boardId = '') {
   const safeTitle = escapeHtml(item.title);
   const safeId = escapeHtml(item.id);
+  const safeBoardId = escapeHtml(boardId);
 
   return `
     <div class="bookmark-board-card bookmark-board-folder-card" title="${safeTitle}">
-      <button type="button" class="bookmark-board-card-main" data-action="open-bookmark-board-folder" data-bookmark-folder-id="${safeId}">
+      <button type="button" class="bookmark-board-card-main" data-action="open-bookmark-board-folder" data-bookmark-folder-id="${safeId}" data-bookmark-board-id="${safeBoardId}">
         <div class="bookmark-board-card-favicon bookmark-board-folder-icon">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.18c.6 0 1.176.238 1.6.663l1.057 1.057c.424.424 1 .662 1.6.662H18A2.25 2.25 0 0 1 20.25 9.132V17.25A2.25 2.25 0 0 1 18 19.5H6A2.25 2.25 0 0 1 3.75 17.25V6.75Z" />
@@ -1608,6 +1782,43 @@ function renderBookmarkBoardFolderCard(item) {
     </div>`;
 }
 
+function renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredItems }) {
+  const boardId = escapeHtml(board.id);
+  const currentTitle = currentFolder?.title || board.currentFolderTitle || board.folderTitle;
+  const folderCount = items.filter(item => item.type === 'folder').length;
+  const bookmarkCount = items.filter(item => item.type !== 'folder').length;
+  const metaText = folderCount > 0
+    ? t('bookmarkBoardMetaWithFolders', currentTitle, bookmarkCount, folderCount)
+    : t('bookmarkBoardMetaSelected', currentTitle, bookmarkCount);
+  const canGoBack = !!board.currentFolderId && board.currentFolderId !== board.folderId;
+  const query = getBookmarkBoardSearchQuery(board.id);
+  const bodyHtml = filteredItems.length === 0
+    ? `<div class="bookmark-board-group-empty">${escapeHtml(items.length === 0 ? t('bookmarkBoardEmptyFolder') : t('bookmarkBoardEmptyNoResults'))}</div>`
+    : `<div class="bookmark-board-list bookmark-board-group-list">
+        ${filteredItems.map(item => item.type === 'folder' ? renderBookmarkBoardFolderCard(item, board.id) : renderBookmarkBoardCard(item, board.id)).join('')}
+      </div>`;
+
+  return `
+    <div class="bookmark-board-group" data-bookmark-board-id="${boardId}">
+      <div class="bookmark-board-group-header">
+        <div class="bookmark-board-group-copy">
+          <div class="bookmark-board-group-title">${escapeHtml(currentTitle || board.folderTitle)}</div>
+          <div class="bookmark-board-group-meta">${escapeHtml(metaText)}</div>
+        </div>
+        <div class="bookmark-board-group-tools">
+          ${canGoBack ? `<button type="button" class="bookmark-board-back" data-action="bookmark-board-go-up" data-bookmark-board-id="${boardId}">${escapeHtml(t('bookmarkBoardBack'))}</button>` : ''}
+          <label class="bookmark-board-search-shell bookmark-board-group-search">
+            <input type="search" class="bookmark-board-search" data-action="search-bookmark-board" data-bookmark-board-id="${boardId}" placeholder="${escapeHtml(t('bookmarkBoardSearchPlaceholder'))}" value="${escapeHtml(query)}">
+          </label>
+          <button type="button" class="bookmark-board-remove" data-action="remove-bookmark-board" data-bookmark-board-id="${boardId}" title="${escapeHtml(t('bookmarkBoardRemove'))}" aria-label="${escapeHtml(t('bookmarkBoardRemove'))}">×</button>
+        </div>
+      </div>
+      <div class="bookmark-board-group-body">
+        ${bodyHtml}
+      </div>
+    </div>`;
+}
+
 async function renderBookmarkBoardSection() {
   const sectionEl = document.getElementById('bookmarkBoardSection');
   const listEl = document.getElementById('bookmarkBoardList');
@@ -1615,6 +1826,7 @@ async function renderBookmarkBoardSection() {
   const metaEl = document.getElementById('bookmarkBoardMeta');
   const searchShell = document.getElementById('bookmarkBoardSearchShell');
   const searchInput = document.getElementById('bookmarkBoardSearchInput');
+  const addBtn = document.getElementById('bookmarkBoardAddBtn');
   const backBtn = document.getElementById('bookmarkBoardBackBtn');
   const toggleBtn = document.getElementById('bookmarkBoardToggleBtn');
   if (!sectionEl || !listEl || !emptyEl || !metaEl || !searchShell || !searchInput) return;
@@ -1629,9 +1841,17 @@ async function renderBookmarkBoardSection() {
     toggleBtn.setAttribute('aria-label', toggleLabel);
     toggleBtn.setAttribute('aria-expanded', isBookmarkBoardCollapsed ? 'false' : 'true');
   }
+  sectionEl.classList.toggle('is-collapsed', isBookmarkBoardCollapsed);
+  if (addBtn) {
+    addBtn.textContent = t('bookmarkBoardAdd');
+    addBtn.title = t('bookmarkBoardAdd');
+    addBtn.setAttribute('aria-label', t('bookmarkBoardAdd'));
+    addBtn.style.display = isBookmarkBoardCollapsed ? 'none' : 'inline-flex';
+  }
 
   if (isBookmarkBoardCollapsed) {
     sectionEl.style.display = 'block';
+    listEl.classList.remove('has-multiple-boards');
     listEl.innerHTML = '';
     emptyEl.style.display = 'none';
     searchShell.style.display = 'none';
@@ -1642,8 +1862,11 @@ async function renderBookmarkBoardSection() {
     return;
   }
 
-  if (!bookmarkBoardConfig.folderId) {
+  const boards = getBookmarkBoardEntries();
+
+  if (boards.length === 0) {
     sectionEl.style.display = 'block';
+    listEl.classList.remove('has-multiple-boards');
     metaEl.textContent = '';
     searchShell.style.display = 'none';
     if (backBtn) backBtn.style.display = 'none';
@@ -1667,39 +1890,33 @@ async function renderBookmarkBoardSection() {
     return;
   }
 
-  await loadBookmarkBoardItems();
-
-  const query = bookmarkBoardSearchQuery.trim().toLowerCase();
-  const filteredItems = bookmarkBoardItems.filter(item => {
-    if (!query) return true;
-    const haystack = `${item.title} ${item.url} ${item.path} ${item.type}`.toLowerCase();
-    return haystack.includes(query);
-  });
-
-  const folderCount = bookmarkBoardItems.filter(item => item.type === 'folder').length;
-  const bookmarkCount = bookmarkBoardItems.filter(item => item.type !== 'folder').length;
-  const currentTitle = bookmarkBoardCurrentFolder?.title || bookmarkBoardConfig.currentFolderTitle || bookmarkBoardConfig.folderTitle;
-  metaEl.textContent = folderCount > 0
-    ? t('bookmarkBoardMetaWithFolders', currentTitle, bookmarkCount, folderCount)
-    : t('bookmarkBoardMetaSelected', currentTitle, bookmarkCount);
-  searchShell.style.display = bookmarkBoardItems.length > 0 ? 'flex' : 'none';
-
-  if (backBtn) {
-    const canGoBack = !!bookmarkBoardConfig.currentFolderId && bookmarkBoardConfig.currentFolderId !== bookmarkBoardConfig.folderId;
-    backBtn.style.display = canGoBack ? 'inline-flex' : 'none';
+  if (bookmarkFolders.length === 0) {
+    try {
+      await loadBookmarkFolders();
+    } catch (err) {
+      console.warn('[tab-out] Could not load bookmark folders:', err);
+    }
   }
-
-  if (filteredItems.length === 0) {
-    listEl.innerHTML = '';
-    emptyEl.style.display = 'block';
-    emptyEl.textContent = bookmarkBoardItems.length === 0 ? t('bookmarkBoardEmptyFolder') : t('bookmarkBoardEmptyNoResults');
-    return;
-  }
-
+  listEl.classList.toggle('has-multiple-boards', boards.length > 1);
+  searchShell.style.display = 'none';
+  if (backBtn) backBtn.style.display = 'none';
+  metaEl.textContent = boards.length > 1 ? `${boards.length} ${currentLanguage === 'zh-CN' ? '个工作台' : 'boards'}` : '';
   emptyEl.style.display = 'none';
-  listEl.innerHTML = filteredItems
-    .map(item => item.type === 'folder' ? renderBookmarkBoardFolderCard(item) : renderBookmarkBoardCard(item))
-    .join('');
+
+  const groupHtml = [];
+  for (const board of boards) {
+    const { items, currentFolder } = await loadBookmarkBoardItems(board);
+    bookmarkBoardStateById[board.id] = { items, currentFolder };
+    const query = getBookmarkBoardSearchQuery(board.id).trim().toLowerCase();
+    const filteredItems = items.filter(item => {
+      if (!query) return true;
+      const haystack = `${item.title} ${item.url} ${item.path} ${item.type}`.toLowerCase();
+      return haystack.includes(query);
+    });
+    groupHtml.push(renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredItems }));
+  }
+
+  listEl.innerHTML = groupHtml.join('');
 }
 
 function syncQuickLinkModalText() {
@@ -1720,6 +1937,30 @@ function closeQuickLinkModal() {
   if (form) form.reset();
   if (idInput) idInput.value = '';
   syncQuickLinkModalText();
+}
+
+function closeConfirmModal() {
+  pendingConfirmAction = null;
+  const backdrop = document.getElementById('confirmModalBackdrop');
+  if (backdrop) backdrop.style.display = 'none';
+}
+
+function openConfirmModal({ title, body, onConfirm, confirmLabel = '', eyebrow = '' }) {
+  const backdrop = document.getElementById('confirmModalBackdrop');
+  const titleEl = document.getElementById('confirmModalTitle');
+  const bodyEl = document.getElementById('confirmModalBody');
+  const eyebrowEl = document.getElementById('confirmModalEyebrow');
+  const cancelBtn = document.getElementById('confirmModalCancelBtn');
+  const confirmBtn = document.getElementById('confirmModalConfirmBtn');
+  if (!backdrop || !titleEl || !bodyEl || !eyebrowEl || !cancelBtn || !confirmBtn) return;
+
+  pendingConfirmAction = typeof onConfirm === 'function' ? onConfirm : null;
+  titleEl.textContent = title || '';
+  bodyEl.textContent = body || '';
+  eyebrowEl.textContent = eyebrow || t('confirmDialogEyebrow');
+  cancelBtn.textContent = t('confirmDialogCancel');
+  confirmBtn.textContent = confirmLabel || t('confirmDialogConfirm');
+  backdrop.style.display = 'flex';
 }
 
 function openQuickLinkModal(linkId = '') {
@@ -3560,6 +3801,8 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'search-bookmark-board') return;
+
   if (action === 'toggle-bookmark-board') {
     await setBookmarkBoardCollapsedPreference(!isBookmarkBoardCollapsed);
     await renderBookmarkBoardSection();
@@ -3568,21 +3811,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'select-bookmark-folder') {
     const folderId = actionEl.dataset.bookmarkFolderId;
-    const folder = bookmarkFolders.find(item => item.id === folderId);
-    if (!folder) return;
-    await saveBookmarkBoardConfigPreference({
-      ...bookmarkBoardConfig,
-      folderId: folder.id,
-      folderTitle: getBookmarkFolderDisplayPath(folder),
-      currentFolderId: folder.id,
-      currentFolderTitle: getBookmarkFolderDisplayName(folder),
-    });
-    bookmarkBoardSearchQuery = '';
-    bookmarkBoardItems = [];
-    bookmarkBoardCurrentFolder = null;
-    await renderBookmarkFolderPicker();
-    await renderBookmarkBoardSection();
-    showToast(t('toastBookmarkFolderSaved'));
+    await setBookmarkBoardRootFolder(folderId);
     return;
   }
 
@@ -3591,9 +3820,27 @@ document.addEventListener('click', async (e) => {
     bookmarkBoardItems = [];
     bookmarkBoardCurrentFolder = null;
     bookmarkBoardSearchQuery = '';
+    bookmarkBoardStateById = {};
+    bookmarkBoardSearchQueries = {};
     await renderBookmarkFolderPicker();
     await renderBookmarkBoardSection();
     showToast(t('toastBookmarkFolderCleared'));
+    return;
+  }
+
+  if (action === 'remove-bookmark-board') {
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    if (!boardId) return;
+    const board = getBookmarkBoardEntry(boardId);
+    if (!board) return;
+    openConfirmModal({
+      title: t('bookmarkBoardRemove'),
+      body: t('bookmarkBoardRemoveConfirm', board.folderTitle || board.currentFolderTitle || ''),
+      confirmLabel: t('confirmDialogConfirm'),
+      onConfirm: async () => {
+        await removeBookmarkBoardEntry(boardId);
+      },
+    });
     return;
   }
 
@@ -3785,33 +4032,53 @@ document.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     const bookmarkId = actionEl.dataset.bookmarkId;
-    const item = bookmarkBoardItems.find(entry => entry.type === 'bookmark' && entry.id === bookmarkId);
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const boardState = boardId ? bookmarkBoardStateById[boardId] : null;
+    const sourceItems = boardState?.items || bookmarkBoardItems;
+    const item = sourceItems.find(entry => entry.type === 'bookmark' && entry.id === bookmarkId);
     if (!bookmarkId || !item) return;
-    if (!window.confirm(t('bookmarkBoardDeleteConfirm', item.title))) return;
-
-    try {
-      await chrome.bookmarks.remove(bookmarkId);
-      bookmarkBoardItems = [];
-      await renderBookmarkBoardSection();
-      showToast(t('toastBookmarkDeleted'));
-    } catch (err) {
-      console.warn('[tab-out] Could not delete bookmark:', err);
-      showToast(t('toastBookmarkDeleteFailed'));
-    }
+    openConfirmModal({
+      title: t('bookmarkBoardDelete'),
+      body: t('bookmarkBoardDeleteConfirm', item.title),
+      confirmLabel: t('confirmDialogConfirm'),
+      onConfirm: async () => {
+        try {
+          await chrome.bookmarks.remove(bookmarkId);
+          bookmarkBoardItems = [];
+          if (boardId) delete bookmarkBoardStateById[boardId];
+          await renderBookmarkBoardSection();
+          showToast(t('toastBookmarkDeleted'));
+        } catch (err) {
+          console.warn('[tab-out] Could not delete bookmark:', err);
+          showToast(t('toastBookmarkDeleteFailed'));
+        }
+      },
+    });
     return;
   }
 
   if (action === 'open-bookmark-board-folder') {
     const folderId = actionEl.dataset.bookmarkFolderId;
-    const folder = bookmarkBoardItems.find(item => item.type === 'folder' && item.id === folderId);
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const board = boardId ? getBookmarkBoardEntry(boardId) : null;
+    const sourceItems = boardId ? (bookmarkBoardStateById[boardId]?.items || []) : bookmarkBoardItems;
+    const folder = sourceItems.find(item => item.type === 'folder' && item.id === folderId);
     if (!folder) return;
 
-    await saveBookmarkBoardConfigPreference({
-      ...bookmarkBoardConfig,
-      currentFolderId: folder.id,
-      currentFolderTitle: folder.title,
-    });
-    bookmarkBoardSearchQuery = '';
+    if (board) {
+      await updateBookmarkBoardEntry(board.id, {
+        currentFolderId: folder.id,
+        currentFolderTitle: folder.title,
+      });
+      setBookmarkBoardSearchQuery(board.id, '');
+      delete bookmarkBoardStateById[board.id];
+    } else {
+      await saveBookmarkBoardConfigPreference({
+        ...bookmarkBoardConfig,
+        currentFolderId: folder.id,
+        currentFolderTitle: folder.title,
+      });
+    }
     bookmarkBoardItems = [];
     bookmarkBoardCurrentFolder = null;
     await renderBookmarkBoardSection();
@@ -3819,6 +4086,33 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'bookmark-board-go-up') {
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const board = boardId ? getBookmarkBoardEntry(boardId) : null;
+    if (board) {
+      const currentFolderId = board.currentFolderId || board.folderId;
+      if (!currentFolderId || currentFolderId === board.folderId) return;
+      let currentFolder = bookmarkBoardStateById[board.id]?.currentFolder;
+      if (!currentFolder?.parentId) {
+        const state = await loadBookmarkBoardItems(board);
+        currentFolder = state.currentFolder;
+      }
+      const parentId = currentFolder?.parentId || board.folderId;
+      const nextFolderId = parentId === board.folderId || !parentId ? board.folderId : parentId;
+      let nextTitle = board.folderTitle;
+      try {
+        const [parentNode] = await chrome.bookmarks.get(nextFolderId);
+        if (parentNode?.title) nextTitle = parentNode.title;
+      } catch {}
+      await updateBookmarkBoardEntry(board.id, {
+        currentFolderId: nextFolderId,
+        currentFolderTitle: nextTitle,
+      });
+      setBookmarkBoardSearchQuery(board.id, '');
+      delete bookmarkBoardStateById[board.id];
+      await renderBookmarkBoardSection();
+      return;
+    }
+
     const currentFolderId = bookmarkBoardConfig.currentFolderId || bookmarkBoardConfig.folderId;
     if (!currentFolderId || currentFolderId === bookmarkBoardConfig.folderId) return;
     if (!bookmarkBoardCurrentFolder?.parentId) {
@@ -4241,6 +4535,10 @@ document.getElementById('settingsModalBackdrop')?.addEventListener('click', (e) 
   if (e.target.id === 'settingsModalBackdrop') setSettingsModalOpen(false);
 });
 
+document.getElementById('confirmModalBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'confirmModalBackdrop') closeConfirmModal();
+});
+
 document.getElementById('bookmarkFolderSearchInput')?.addEventListener('input', async (e) => {
   const input = e.target;
   if (!(input instanceof HTMLInputElement)) return;
@@ -4253,6 +4551,31 @@ document.getElementById('bookmarkBoardSearchInput')?.addEventListener('input', a
   if (!(input instanceof HTMLInputElement)) return;
   bookmarkBoardSearchQuery = input.value || '';
   await renderBookmarkBoardSection();
+});
+
+document.addEventListener('input', async (e) => {
+  const input = e.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  if (input.dataset.action !== 'search-bookmark-board') return;
+  const boardId = input.dataset.bookmarkBoardId;
+  if (!boardId) return;
+  setBookmarkBoardSearchQuery(boardId, input.value || '');
+  await renderBookmarkBoardSection();
+});
+
+document.addEventListener('click', async (e) => {
+  const actionEl = e.target.closest('[data-action]');
+  if (!actionEl) return;
+  const action = actionEl.dataset.action;
+  if (action === 'close-confirm-modal') {
+    closeConfirmModal();
+    return;
+  }
+  if (action === 'confirm-modal-submit') {
+    const submit = pendingConfirmAction;
+    closeConfirmModal();
+    if (submit) await submit();
+  }
 });
 
 document.addEventListener('click', (e) => {
@@ -4309,6 +4632,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   const backdrop = document.getElementById('quickLinkModalBackdrop');
   if (backdrop?.style.display === 'flex') closeQuickLinkModal();
+  const confirmBackdrop = document.getElementById('confirmModalBackdrop');
+  if (confirmBackdrop?.style.display === 'flex') closeConfirmModal();
   if (isSettingsModalOpen) setSettingsModalOpen(false);
   if (isStashMenuOpen) setStashMenuOpen(false);
   if (isSessionPanelOpen) setSessionPanelOpen(false);
