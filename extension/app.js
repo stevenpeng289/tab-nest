@@ -26,6 +26,12 @@
 // All open tabs — populated by fetchOpenTabs()
 let openTabs = [];
 let quickLinks = [];
+let bookmarkFolders = [];
+let bookmarkBoardItems = [];
+let bookmarkBoardCurrentFolder = null;
+let bookmarkFolderSearchQuery = '';
+let bookmarkBoardSearchQuery = '';
+let isBookmarkBoardCollapsed = false;
 let currentLanguage = 'zh-CN';
 let currentTheme = 'light';
 let customBackgroundImage = '';
@@ -35,6 +41,13 @@ let isStashMenuOpen = false;
 let isSettingsModalOpen = false;
 let currentSettingsPanel = 'appearance';
 let quickLinksOpenMode = 'current-tab';
+let bookmarkOpenMode = 'new-tab';
+let bookmarkBoardConfig = {
+  folderId: '',
+  folderTitle: '',
+  currentFolderId: '',
+  currentFolderTitle: '',
+};
 let currentOpenTabsView = 'domains';
 let draggedWindowTabState = null;
 let dashboardRefreshTimer = null;
@@ -47,6 +60,9 @@ const BACKGROUND_IMAGE_STORAGE_KEY = 'customBackgroundImage';
 const BACKGROUND_COLOR_STORAGE_KEY = 'customBackgroundColor';
 const TAB_SESSIONS_STORAGE_KEY = 'tabSessions';
 const QUICK_LINKS_OPEN_MODE_STORAGE_KEY = 'quickLinksOpenMode';
+const BOOKMARK_BOARD_CONFIG_STORAGE_KEY = 'bookmarkBoardConfig';
+const BOOKMARK_OPEN_MODE_STORAGE_KEY = 'bookmarkOpenMode';
+const BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY = 'bookmarkBoardCollapsed';
 const OPEN_TABS_VIEW_STORAGE_KEY = 'openTabsView';
 const SESSIONS_VIEWED_COUNT_KEY = 'sessionsViewedCount'; // New storage key
 const MAX_BACKGROUND_EDGE = 2200;
@@ -70,6 +86,21 @@ const MESSAGES = {
     openTabsViewWindows: '窗口',
     quickLinksTitle: '常用入口',
     quickLinksSubtitle: '',
+    bookmarkBoardTitle: '书签工作台',
+    bookmarkBoardSubtitle: '把某个书签目录里的内容直接铺开，省去层层点开的时间。',
+    bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} 个书签`,
+    bookmarkBoardMetaWithFolders: (folder, bookmarkCount, folderCount) => `${folder} · ${bookmarkCount} 个书签 · ${folderCount} 个子目录`,
+    bookmarkBoardSearchPlaceholder: '搜索当前目录',
+    bookmarkBoardEmpty: '还没有选择书签目录。去设置里指定一个高频目录吧。',
+    bookmarkBoardEmptyNoResults: '当前目录里没有匹配结果。',
+    bookmarkBoardEmptyFolder: '这个目录下还没有书签或子目录。',
+    bookmarkBoardItemOpen: '打开书签',
+    bookmarkBoardFolderOpen: '进入子目录',
+    bookmarkBoardBack: '返回上级',
+    bookmarkBoardCollapse: '收起',
+    bookmarkBoardExpand: '展开',
+    bookmarkBoardDelete: '删除书签',
+    bookmarkBoardDeleteConfirm: title => `要删除书签“${title}”吗？`,
     quickLinksAddButton: '添加入口',
     quickLinksEmptyTitle: '固定几个常用网站，打开更快。',
     quickLinksEmptySubtitle: '',
@@ -91,6 +122,7 @@ const MESSAGES = {
     settingsTitle: '偏好设置',
     settingsAppearance: '外观',
     settingsLinks: '快捷入口',
+    settingsBookmarks: '书签目录',
     settingsLanguageLabel: '界面语言',
     settingsBackgroundLabel: '背景设置',
     settingsBackgroundHint: '上传你自己的图片作为背景。',
@@ -101,6 +133,15 @@ const MESSAGES = {
     settingsOpenModeCurrentDesc: '直接替换当前新标签页。',
     settingsOpenModeNew: '新标签页',
     settingsOpenModeNewDesc: '保留当前面板，另开页面。',
+    settingsBookmarkFolderLabel: '要展示的书签目录',
+    settingsBookmarkFolderHint: '选一个你近期常用的书签目录，首页会直接平铺展示其中的链接。',
+    settingsBookmarkFolderSearchPlaceholder: '搜索书签目录名称',
+    settingsBookmarkFolderEmpty: '没有找到可用的书签目录。',
+    settingsBookmarkFolderClear: '清空选择',
+    settingsBookmarkFolderSelected: '当前已选',
+    settingsBookmarkOpenModeLabel: '点击书签时',
+    settingsBookmarkOpenModeHint: '选择替换当前新标签页，或在新标签页中打开。',
+    settingsBookmarkFolderCount: count => `${count} 个目录`,
     settingsSaved: '设置已保存',
     toastThemeUpdated: '主题已切换',
     openSettings: '打开设置',
@@ -124,6 +165,12 @@ const MESSAGES = {
     toastQuickLinkUpdated: '快捷入口已更新',
     toastQuickLinkDeleted: '快捷入口已删除',
     toastQuickLinkInvalidUrl: '请输入有效的网址',
+    toastBookmarkFolderSaved: '书签目录已更新',
+    toastBookmarkFolderCleared: '已清空书签目录',
+    toastBookmarkOpenFailed: '打开书签失败',
+    toastBookmarkDeleted: '书签已删除',
+    toastBookmarkDeleteFailed: '删除书签失败',
+    toastBookmarksUnavailable: '当前无法读取书签',
     toastBackgroundUpdated: '背景已更新',
     toastBackgroundCleared: '已恢复默认背景',
     toastBackgroundFailed: '背景设置失败，请换一张图片试试',
@@ -219,6 +266,21 @@ const MESSAGES = {
     openTabsViewLabel: 'Switch tab view',
     openTabsViewDomains: 'Domains',
     openTabsViewWindows: 'Windows',
+    bookmarkBoardTitle: 'Bookmark board',
+    bookmarkBoardSubtitle: 'Flatten one bookmark folder onto your new tab page for faster access.',
+    bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} bookmarks`,
+    bookmarkBoardMetaWithFolders: (folder, bookmarkCount, folderCount) => `${folder} · ${bookmarkCount} bookmarks · ${folderCount} folders`,
+    bookmarkBoardSearchPlaceholder: 'Search current folder',
+    bookmarkBoardEmpty: 'No bookmark folder selected yet. Pick one in Settings.',
+    bookmarkBoardEmptyNoResults: 'No items match this search.',
+    bookmarkBoardEmptyFolder: 'This folder does not contain bookmarks or subfolders yet.',
+    bookmarkBoardItemOpen: 'Open bookmark',
+    bookmarkBoardFolderOpen: 'Open folder',
+    bookmarkBoardBack: 'Back',
+    bookmarkBoardCollapse: 'Collapse',
+    bookmarkBoardExpand: 'Expand',
+    bookmarkBoardDelete: 'Delete bookmark',
+    bookmarkBoardDeleteConfirm: title => `Delete bookmark "${title}"?`,
     quickLinksTitle: 'Quick links',
     quickLinksSubtitle: '',
     quickLinksAddButton: 'Add link',
@@ -242,6 +304,7 @@ const MESSAGES = {
     settingsTitle: 'Settings',
     settingsAppearance: 'Appearance',
     settingsLinks: 'Quick Links',
+    settingsBookmarks: 'Bookmarks',
     settingsLanguageLabel: 'Interface language',
     settingsBackgroundLabel: 'Background',
     settingsBackgroundHint: 'Upload your own image as the background.',
@@ -252,6 +315,15 @@ const MESSAGES = {
     settingsOpenModeCurrentDesc: 'Replace this new tab directly.',
     settingsOpenModeNew: 'New tab',
     settingsOpenModeNewDesc: 'Keep this dashboard and open another tab.',
+    settingsBookmarkFolderLabel: 'Bookmark folder to show',
+    settingsBookmarkFolderHint: 'Choose a folder you use often and flatten it right onto the homepage.',
+    settingsBookmarkFolderSearchPlaceholder: 'Search bookmark folders',
+    settingsBookmarkFolderEmpty: 'No bookmark folders found.',
+    settingsBookmarkFolderClear: 'Clear selection',
+    settingsBookmarkFolderSelected: 'Selected',
+    settingsBookmarkOpenModeLabel: 'When clicking a bookmark',
+    settingsBookmarkOpenModeHint: 'Open it here, or open it in a new tab.',
+    settingsBookmarkFolderCount: count => `${count} folders`,
     settingsSaved: 'Settings saved',
     toastThemeUpdated: 'Theme updated',
     openSettings: 'Open settings',
@@ -275,6 +347,12 @@ const MESSAGES = {
     toastQuickLinkUpdated: 'Quick link updated',
     toastQuickLinkDeleted: 'Quick link deleted',
     toastQuickLinkInvalidUrl: 'Enter a valid URL',
+    toastBookmarkFolderSaved: 'Bookmark folder updated',
+    toastBookmarkFolderCleared: 'Bookmark folder cleared',
+    toastBookmarkOpenFailed: 'Could not open bookmark',
+    toastBookmarkDeleted: 'Bookmark deleted',
+    toastBookmarkDeleteFailed: 'Could not delete bookmark',
+    toastBookmarksUnavailable: 'Bookmarks are unavailable right now',
     toastBackgroundUpdated: 'Background updated',
     toastBackgroundCleared: 'Background reset',
     toastBackgroundFailed: 'Failed to update background',
@@ -599,7 +677,7 @@ async function markSessionsViewed() {
 }
 
 function setCurrentSettingsPanel(panel) {
-  currentSettingsPanel = panel === 'links' ? 'links' : 'appearance';
+  currentSettingsPanel = ['appearance', 'links', 'bookmarks'].includes(panel) ? panel : 'appearance';
 
   document.querySelectorAll('.settings-nav-item').forEach(button => {
     const isActive = button.dataset.settingsPanel === currentSettingsPanel;
@@ -644,6 +722,64 @@ async function loadQuickLinksOpenModePreference() {
 async function setQuickLinksOpenModePreference(mode) {
   quickLinksOpenMode = mode === 'new-tab' ? 'new-tab' : 'current-tab';
   await chrome.storage.local.set({ [QUICK_LINKS_OPEN_MODE_STORAGE_KEY]: quickLinksOpenMode });
+}
+
+function normalizeBookmarkBoardConfig(config = {}) {
+  const folderId = String(config.folderId || '').trim();
+  const folderTitle = String(config.folderTitle || '').trim();
+  return {
+    folderId,
+    folderTitle,
+    currentFolderId: String(config.currentFolderId || folderId).trim(),
+    currentFolderTitle: String(config.currentFolderTitle || folderTitle).trim(),
+  };
+}
+
+async function loadBookmarkBoardConfigPreference() {
+  try {
+    const { [BOOKMARK_BOARD_CONFIG_STORAGE_KEY]: storedConfig = {} } = await chrome.storage.local.get(BOOKMARK_BOARD_CONFIG_STORAGE_KEY);
+    bookmarkBoardConfig = normalizeBookmarkBoardConfig(storedConfig);
+  } catch {
+    bookmarkBoardConfig = normalizeBookmarkBoardConfig();
+  }
+}
+
+async function saveBookmarkBoardConfigPreference(config) {
+  bookmarkBoardConfig = normalizeBookmarkBoardConfig(config);
+  await chrome.storage.local.set({ [BOOKMARK_BOARD_CONFIG_STORAGE_KEY]: bookmarkBoardConfig });
+}
+
+async function clearBookmarkBoardConfigPreference() {
+  bookmarkBoardConfig = normalizeBookmarkBoardConfig();
+  await chrome.storage.local.remove(BOOKMARK_BOARD_CONFIG_STORAGE_KEY);
+}
+
+async function loadBookmarkOpenModePreference() {
+  try {
+    const { [BOOKMARK_OPEN_MODE_STORAGE_KEY]: storedMode = 'new-tab' } = await chrome.storage.local.get(BOOKMARK_OPEN_MODE_STORAGE_KEY);
+    bookmarkOpenMode = storedMode === 'current-tab' ? 'current-tab' : 'new-tab';
+  } catch {
+    bookmarkOpenMode = 'new-tab';
+  }
+}
+
+async function setBookmarkOpenModePreference(mode) {
+  bookmarkOpenMode = mode === 'current-tab' ? 'current-tab' : 'new-tab';
+  await chrome.storage.local.set({ [BOOKMARK_OPEN_MODE_STORAGE_KEY]: bookmarkOpenMode });
+}
+
+async function loadBookmarkBoardCollapsedPreference() {
+  try {
+    const { [BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY]: storedCollapsed = false } = await chrome.storage.local.get(BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY);
+    isBookmarkBoardCollapsed = storedCollapsed === true;
+  } catch {
+    isBookmarkBoardCollapsed = false;
+  }
+}
+
+async function setBookmarkBoardCollapsedPreference(collapsed) {
+  isBookmarkBoardCollapsed = collapsed === true;
+  await chrome.storage.local.set({ [BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY]: isBookmarkBoardCollapsed });
 }
 
 async function loadOpenTabsViewPreference() {
@@ -705,11 +841,43 @@ function syncQuickLinkOpenModeControls() {
   }
 }
 
+function syncBookmarkOpenModeControls() {
+  const configs = [
+    {
+      id: 'settingsBookmarkOpenModeCurrentBtn',
+      mode: 'current-tab',
+      title: t('settingsOpenModeCurrent'),
+      description: t('settingsOpenModeCurrentDesc'),
+    },
+    {
+      id: 'settingsBookmarkOpenModeNewBtn',
+      mode: 'new-tab',
+      title: t('settingsOpenModeNew'),
+      description: t('settingsOpenModeNewDesc'),
+    },
+  ];
+
+  for (const config of configs) {
+    const button = document.getElementById(config.id);
+    if (!button) continue;
+    const isActive = bookmarkOpenMode === config.mode;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    button.innerHTML = `
+      <span class="settings-choice-title">${escapeHtml(config.title)}</span>
+      <span class="settings-choice-meta">${escapeHtml(config.description)}</span>`;
+  }
+}
+
 function applyStaticText() {
   document.documentElement.lang = currentLanguage;
 
   const quickLinksTitle = document.getElementById('quickLinksTitle');
   const quickLinksSubtitle = document.getElementById('quickLinksSubtitle');
+  const bookmarkBoardTitle = document.getElementById('bookmarkBoardTitle');
+  const bookmarkBoardSubtitle = document.getElementById('bookmarkBoardSubtitle');
+  const bookmarkBoardSearchInput = document.getElementById('bookmarkBoardSearchInput');
+  const bookmarkBoardToggleBtn = document.getElementById('bookmarkBoardToggleBtn');
   const openTabsViewSwitcher = document.getElementById('openTabsViewSwitcher');
   const openTabsDomainViewBtn = document.getElementById('openTabsDomainViewBtn');
   const openTabsWindowViewBtn = document.getElementById('openTabsWindowViewBtn');
@@ -744,16 +912,33 @@ function applyStaticText() {
   const settingsTitle = document.getElementById('settingsModalTitle');
   const settingsAppearanceTab = document.getElementById('settingsAppearanceTab');
   const settingsLinksTab = document.getElementById('settingsLinksTab');
+  const settingsBookmarksTab = document.getElementById('settingsBookmarksTab');
   const settingsLanguageLabel = document.getElementById('settingsLanguageLabel');
   const settingsBackgroundLabel = document.getElementById('settingsBackgroundLabel');
   const settingsBackgroundHint = document.getElementById('settingsBackgroundHint');
   const settingsImageUploadLabel = document.getElementById('settingsImageUploadLabel');
   const settingsLinkOpenModeLabel = document.getElementById('settingsLinkOpenModeLabel');
   const settingsLinkOpenModeHint = document.getElementById('settingsLinkOpenModeHint');
+  const settingsBookmarkFolderLabel = document.getElementById('settingsBookmarkFolderLabel');
+  const settingsBookmarkFolderHint = document.getElementById('settingsBookmarkFolderHint');
+  const bookmarkFolderSearchInput = document.getElementById('bookmarkFolderSearchInput');
+  const settingsBookmarkOpenModeLabel = document.getElementById('settingsBookmarkOpenModeLabel');
+  const settingsBookmarkOpenModeHint = document.getElementById('settingsBookmarkOpenModeHint');
+  const bookmarkBoardBackBtn = document.getElementById('bookmarkBoardBackBtn');
   const settingsCloseBtn = document.getElementById('settingsModalCloseBtn');
 
   if (quickLinksTitle) quickLinksTitle.textContent = t('quickLinksTitle');
   if (quickLinksSubtitle) quickLinksSubtitle.textContent = t('quickLinksSubtitle');
+  if (bookmarkBoardTitle) bookmarkBoardTitle.textContent = t('bookmarkBoardTitle');
+  if (bookmarkBoardSubtitle) bookmarkBoardSubtitle.textContent = t('bookmarkBoardSubtitle');
+  if (bookmarkBoardSearchInput) bookmarkBoardSearchInput.placeholder = t('bookmarkBoardSearchPlaceholder');
+  if (bookmarkBoardToggleBtn) {
+    const label = isBookmarkBoardCollapsed ? t('bookmarkBoardExpand') : t('bookmarkBoardCollapse');
+    bookmarkBoardToggleBtn.textContent = label;
+    bookmarkBoardToggleBtn.title = label;
+    bookmarkBoardToggleBtn.setAttribute('aria-label', label);
+    bookmarkBoardToggleBtn.setAttribute('aria-expanded', isBookmarkBoardCollapsed ? 'false' : 'true');
+  }
   if (openTabsViewSwitcher) openTabsViewSwitcher.setAttribute('aria-label', t('openTabsViewLabel'));
   if (openTabsDomainViewBtn || openTabsWindowViewBtn) syncOpenTabsViewControls();
   if (stashTrigger) {
@@ -816,12 +1001,19 @@ function applyStaticText() {
   if (settingsTitle) settingsTitle.textContent = t('settingsTitle');
   if (settingsAppearanceTab) settingsAppearanceTab.textContent = t('settingsAppearance');
   if (settingsLinksTab) settingsLinksTab.textContent = t('settingsLinks');
+  if (settingsBookmarksTab) settingsBookmarksTab.textContent = t('settingsBookmarks');
   if (settingsLanguageLabel) settingsLanguageLabel.textContent = t('settingsLanguageLabel');
   if (settingsBackgroundLabel) settingsBackgroundLabel.textContent = t('settingsBackgroundLabel');
   if (settingsBackgroundHint) settingsBackgroundHint.textContent = t('settingsBackgroundHint');
   if (settingsImageUploadLabel) settingsImageUploadLabel.textContent = t('settingsImageUploadLabel');
   if (settingsLinkOpenModeLabel) settingsLinkOpenModeLabel.textContent = t('settingsLinkOpenModeLabel');
   if (settingsLinkOpenModeHint) settingsLinkOpenModeHint.textContent = t('settingsLinkOpenModeHint');
+  if (settingsBookmarkFolderLabel) settingsBookmarkFolderLabel.textContent = t('settingsBookmarkFolderLabel');
+  if (settingsBookmarkFolderHint) settingsBookmarkFolderHint.textContent = t('settingsBookmarkFolderHint');
+  if (bookmarkFolderSearchInput) bookmarkFolderSearchInput.placeholder = t('settingsBookmarkFolderSearchPlaceholder');
+  if (settingsBookmarkOpenModeLabel) settingsBookmarkOpenModeLabel.textContent = t('settingsBookmarkOpenModeLabel');
+  if (settingsBookmarkOpenModeHint) settingsBookmarkOpenModeHint.textContent = t('settingsBookmarkOpenModeHint');
+  if (bookmarkBoardBackBtn) bookmarkBoardBackBtn.textContent = t('bookmarkBoardBack');
   if (settingsCloseBtn) {
     settingsCloseBtn.textContent = '×';
     settingsCloseBtn.title = t('closeSettings');
@@ -831,6 +1023,7 @@ function applyStaticText() {
   syncLanguageSwitcher();
   syncBackgroundControls();
   syncQuickLinkOpenModeControls();
+  syncBookmarkOpenModeControls();
   syncOpenTabsViewControls();
   setCurrentSettingsPanel(currentSettingsPanel);
   syncQuickLinkModalText();
@@ -951,6 +1144,148 @@ function normalizeQuickLink(link, index = 0) {
     createdAt: link.createdAt || new Date().toISOString(),
     order: Number.isFinite(link.order) ? link.order : index,
   };
+}
+
+function normalizeBookmarkFolder(folder, index = 0) {
+  return {
+    id: String(folder.id || ''),
+    title: String(folder.title || '').trim() || (folder.id ? `Folder ${folder.id}` : ''),
+    path: String(folder.path || '').trim(),
+    order: Number.isFinite(folder.order) ? folder.order : index,
+  };
+}
+
+function sortBookmarkFolders(list) {
+  return [...list].sort((a, b) => {
+    const pathCompare = String(a.path || '').localeCompare(String(b.path || ''), currentLanguage, { sensitivity: 'base' });
+    if (pathCompare !== 0) return pathCompare;
+    return String(a.title || '').localeCompare(String(b.title || ''), currentLanguage, { sensitivity: 'base' });
+  });
+}
+
+function getBookmarkFolderDisplayName(folder) {
+  const title = String(folder?.title || '').trim();
+  if (!title) return '';
+  return title;
+}
+
+function getBookmarkFolderDisplayPath(folder) {
+  const path = String(folder?.path || '').trim();
+  return path || getBookmarkFolderDisplayName(folder);
+}
+
+async function loadBookmarkFolders() {
+  if (!chrome?.bookmarks?.getTree) {
+    bookmarkFolders = [];
+    return bookmarkFolders;
+  }
+
+  const tree = await chrome.bookmarks.getTree();
+  const folders = [];
+
+  const walk = (node, parents = []) => {
+    if (!node) return;
+    const title = String(node.title || '').trim();
+    const nextParents = title ? [...parents, title] : parents;
+    const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+    const isFolder = hasChildren && !node.url;
+
+    if (isFolder && nextParents.length > 0) {
+      folders.push(normalizeBookmarkFolder({
+        id: node.id,
+        title,
+        path: nextParents.join(' / '),
+      }, folders.length));
+    }
+
+    if (hasChildren) {
+      node.children.forEach(child => walk(child, nextParents));
+    }
+  };
+
+  tree.forEach(rootNode => walk(rootNode, []));
+  bookmarkFolders = sortBookmarkFolders(folders);
+  return bookmarkFolders;
+}
+
+function normalizeBookmarkBoardItem(item, index = 0) {
+  return {
+    id: String(item.id || `bookmark-${index}`),
+    type: item.type === 'folder' ? 'folder' : 'bookmark',
+    title: String(item.title || '').trim() || summarizeUrl(item.url),
+    url: String(item.url || '').trim(),
+    path: String(item.path || '').trim(),
+    parentId: String(item.parentId || ''),
+    childCount: Number.isFinite(item.childCount) ? item.childCount : 0,
+    dateAdded: Number(item.dateAdded || 0),
+    order: index,
+  };
+}
+
+function sortBookmarkBoardItems(items) {
+  return [...items].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    const pathCompare = String(a.path || '').localeCompare(String(b.path || ''), currentLanguage, { sensitivity: 'base' });
+    if (pathCompare !== 0) return pathCompare;
+    return String(a.title || '').localeCompare(String(b.title || ''), currentLanguage, { sensitivity: 'base' });
+  });
+}
+
+async function loadBookmarkBoardItems() {
+  const targetFolderId = bookmarkBoardConfig.currentFolderId || bookmarkBoardConfig.folderId;
+  if (!targetFolderId || !chrome?.bookmarks?.getSubTree) {
+    bookmarkBoardItems = [];
+    bookmarkBoardCurrentFolder = null;
+    return bookmarkBoardItems;
+  }
+
+  try {
+    const [folderNode] = await chrome.bookmarks.getSubTree(targetFolderId);
+    if (!folderNode) {
+      bookmarkBoardItems = [];
+      bookmarkBoardCurrentFolder = null;
+      return bookmarkBoardItems;
+    }
+
+    bookmarkBoardCurrentFolder = {
+      id: String(folderNode.id || ''),
+      title: String(folderNode.title || bookmarkBoardConfig.folderTitle || '').trim(),
+      parentId: String(folderNode.parentId || ''),
+    };
+
+    const directChildren = Array.isArray(folderNode.children) ? folderNode.children : [];
+    const entries = directChildren.map((node, index) => {
+      const title = String(node.title || '').trim();
+      if (node.url) {
+        return normalizeBookmarkBoardItem({
+          id: node.id,
+          type: 'bookmark',
+          title: title || summarizeUrl(node.url),
+          url: node.url,
+          parentId: folderNode.id,
+          dateAdded: Number(node.dateAdded || 0),
+          order: index,
+        }, index);
+      }
+
+      return normalizeBookmarkBoardItem({
+        id: node.id,
+        type: 'folder',
+        title: title || `Folder ${node.id}`,
+        parentId: folderNode.id,
+        childCount: Array.isArray(node.children) ? node.children.length : 0,
+        order: index,
+      }, index);
+    });
+
+    bookmarkBoardItems = sortBookmarkBoardItems(entries);
+    return bookmarkBoardItems;
+  } catch (err) {
+    console.warn('[tab-out] Could not load bookmark board items:', err);
+    bookmarkBoardItems = [];
+    bookmarkBoardCurrentFolder = null;
+    return bookmarkBoardItems;
+  }
 }
 
 function applyBackgroundSelection({ imageDataUrl = '' } = {}) {
@@ -1166,6 +1501,175 @@ async function renderQuickLinksSection() {
     console.warn('[tab-out] Could not load quick links:', err);
     grid.innerHTML = `${renderQuickLinkEmptyCard()}${renderQuickLinkAddCard()}`;
   }
+}
+
+function renderBookmarkFolderOption(folder) {
+  const safeId = escapeHtml(folder.id);
+  const safeTitle = escapeHtml(getBookmarkFolderDisplayName(folder));
+  const safePath = escapeHtml(getBookmarkFolderDisplayPath(folder));
+  const isActive = bookmarkBoardConfig.folderId === folder.id;
+
+  return `
+    <button type="button" class="bookmark-folder-option${isActive ? ' is-active' : ''}" data-action="select-bookmark-folder" data-bookmark-folder-id="${safeId}" aria-pressed="${isActive ? 'true' : 'false'}">
+      <span class="bookmark-folder-option-title">${safeTitle}</span>
+      <span class="bookmark-folder-option-path">${safePath}</span>
+      ${isActive ? `<span class="bookmark-folder-option-badge">${escapeHtml(t('settingsBookmarkFolderSelected'))}</span>` : ''}
+    </button>`;
+}
+
+async function renderBookmarkFolderPicker() {
+  const listEl = document.getElementById('bookmarkFolderList');
+  const emptyEl = document.getElementById('bookmarkFolderEmpty');
+  const clearBtn = document.getElementById('bookmarkFolderClearBtn');
+  const searchInput = document.getElementById('bookmarkFolderSearchInput');
+  if (!listEl || !emptyEl || !clearBtn) return;
+
+  if (searchInput) searchInput.value = bookmarkFolderSearchQuery;
+
+  if (bookmarkFolders.length === 0) {
+    try {
+      await loadBookmarkFolders();
+    } catch (err) {
+      console.warn('[tab-out] Could not load bookmark folders:', err);
+    }
+  }
+
+  const query = bookmarkFolderSearchQuery.trim().toLowerCase();
+  const filteredFolders = bookmarkFolders.filter(folder => {
+    if (!query) return true;
+    const haystack = `${folder.title} ${folder.path}`.toLowerCase();
+    return haystack.includes(query);
+  });
+
+  listEl.innerHTML = filteredFolders.map(renderBookmarkFolderOption).join('');
+  const hasFolders = filteredFolders.length > 0;
+  listEl.style.display = hasFolders ? 'grid' : 'none';
+  emptyEl.style.display = hasFolders ? 'none' : 'block';
+  emptyEl.textContent = t('settingsBookmarkFolderEmpty');
+  clearBtn.hidden = !bookmarkBoardConfig.folderId;
+  clearBtn.textContent = t('settingsBookmarkFolderClear');
+}
+
+function renderBookmarkBoardCard(item) {
+  const safeTitle = escapeHtml(item.title);
+  const safeUrl = escapeHtml(item.url);
+  const safeId = escapeHtml(item.id);
+  const faviconUrl = escapeHtml(getFaviconSource(item.url, item.title, 48));
+
+  return `
+    <div class="bookmark-board-card bookmark-board-site-card" title="${safeTitle}">
+      <button type="button" class="bookmark-board-card-main" data-action="open-bookmark-board-item" data-bookmark-url="${safeUrl}">
+        <div class="bookmark-board-card-favicon">
+          <img src="${faviconUrl}" alt="" data-hide-on-error="true" data-show-fallback-on-error="next">
+          <span class="bookmark-board-card-fallback">${escapeHtml(getQuickLinkMonogram(item.title, item.url).slice(0, 2) || 'BK')}</span>
+        </div>
+        <div class="bookmark-board-card-copy">
+          <div class="bookmark-board-card-title">${safeTitle}</div>
+        </div>
+      </button>
+      <button type="button" class="bookmark-board-delete" data-action="delete-bookmark-board-item" data-bookmark-id="${safeId}" title="${escapeHtml(t('bookmarkBoardDelete'))}" aria-label="${escapeHtml(t('bookmarkBoardDelete'))}">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.1" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>`;
+}
+
+function renderBookmarkBoardFolderCard(item) {
+  const safeTitle = escapeHtml(item.title);
+  const safeId = escapeHtml(item.id);
+
+  return `
+    <div class="bookmark-board-card bookmark-board-folder-card" title="${safeTitle}">
+      <button type="button" class="bookmark-board-card-main" data-action="open-bookmark-board-folder" data-bookmark-folder-id="${safeId}">
+        <div class="bookmark-board-card-favicon bookmark-board-folder-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.18c.6 0 1.176.238 1.6.663l1.057 1.057c.424.424 1 .662 1.6.662H18A2.25 2.25 0 0 1 20.25 9.132V17.25A2.25 2.25 0 0 1 18 19.5H6A2.25 2.25 0 0 1 3.75 17.25V6.75Z" />
+          </svg>
+        </div>
+        <div class="bookmark-board-card-copy">
+          <div class="bookmark-board-card-title">${safeTitle}</div>
+        </div>
+        <span class="bookmark-board-folder-arrow" aria-hidden="true">›</span>
+      </button>
+    </div>`;
+}
+
+async function renderBookmarkBoardSection() {
+  const sectionEl = document.getElementById('bookmarkBoardSection');
+  const listEl = document.getElementById('bookmarkBoardList');
+  const emptyEl = document.getElementById('bookmarkBoardEmpty');
+  const metaEl = document.getElementById('bookmarkBoardMeta');
+  const searchShell = document.getElementById('bookmarkBoardSearchShell');
+  const searchInput = document.getElementById('bookmarkBoardSearchInput');
+  const backBtn = document.getElementById('bookmarkBoardBackBtn');
+  const toggleBtn = document.getElementById('bookmarkBoardToggleBtn');
+  if (!sectionEl || !listEl || !emptyEl || !metaEl || !searchShell || !searchInput) return;
+
+  searchInput.placeholder = t('bookmarkBoardSearchPlaceholder');
+  searchInput.value = bookmarkBoardSearchQuery;
+  if (backBtn) backBtn.textContent = t('bookmarkBoardBack');
+  if (toggleBtn) {
+    const toggleLabel = isBookmarkBoardCollapsed ? t('bookmarkBoardExpand') : t('bookmarkBoardCollapse');
+    toggleBtn.textContent = toggleLabel;
+    toggleBtn.title = toggleLabel;
+    toggleBtn.setAttribute('aria-label', toggleLabel);
+    toggleBtn.setAttribute('aria-expanded', isBookmarkBoardCollapsed ? 'false' : 'true');
+  }
+
+  if (!bookmarkBoardConfig.folderId) {
+    sectionEl.style.display = 'block';
+    metaEl.textContent = '';
+    searchShell.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'none';
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = t('bookmarkBoardEmpty');
+    return;
+  }
+
+  if (isBookmarkBoardCollapsed) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'none';
+    searchShell.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'none';
+    metaEl.textContent = bookmarkBoardConfig.currentFolderTitle || bookmarkBoardConfig.folderTitle;
+    return;
+  }
+
+  await loadBookmarkBoardItems();
+
+  const query = bookmarkBoardSearchQuery.trim().toLowerCase();
+  const filteredItems = bookmarkBoardItems.filter(item => {
+    if (!query) return true;
+    const haystack = `${item.title} ${item.url} ${item.path} ${item.type}`.toLowerCase();
+    return haystack.includes(query);
+  });
+
+  const folderCount = bookmarkBoardItems.filter(item => item.type === 'folder').length;
+  const bookmarkCount = bookmarkBoardItems.filter(item => item.type !== 'folder').length;
+  const currentTitle = bookmarkBoardCurrentFolder?.title || bookmarkBoardConfig.currentFolderTitle || bookmarkBoardConfig.folderTitle;
+  metaEl.textContent = folderCount > 0
+    ? t('bookmarkBoardMetaWithFolders', currentTitle, bookmarkCount, folderCount)
+    : t('bookmarkBoardMetaSelected', currentTitle, bookmarkCount);
+  searchShell.style.display = bookmarkBoardItems.length > 0 ? 'flex' : 'none';
+
+  if (backBtn) {
+    const canGoBack = !!bookmarkBoardConfig.currentFolderId && bookmarkBoardConfig.currentFolderId !== bookmarkBoardConfig.folderId;
+    backBtn.style.display = canGoBack ? 'inline-flex' : 'none';
+  }
+
+  if (filteredItems.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    emptyEl.textContent = bookmarkBoardItems.length === 0 ? t('bookmarkBoardEmptyFolder') : t('bookmarkBoardEmptyNoResults');
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = filteredItems
+    .map(item => item.type === 'folder' ? renderBookmarkBoardFolderCard(item) : renderBookmarkBoardCard(item))
+    .join('');
 }
 
 function syncQuickLinkModalText() {
@@ -1771,6 +2275,8 @@ function registerChromeStateListeners() {
       !changes[TAB_SESSIONS_STORAGE_KEY] &&
       !changes[SESSIONS_VIEWED_COUNT_KEY] &&
       !changes[QUICK_LINKS_STORAGE_KEY] &&
+      !changes[BOOKMARK_BOARD_CONFIG_STORAGE_KEY] &&
+      !changes[BOOKMARK_OPEN_MODE_STORAGE_KEY] &&
       !changes.deferred
     ) {
       return;
@@ -1778,6 +2284,20 @@ function registerChromeStateListeners() {
 
     scheduleDashboardRefresh(60);
   });
+
+  if (chrome?.bookmarks) {
+    const refreshBookmarks = () => {
+      bookmarkFolders = [];
+      bookmarkBoardItems = [];
+      scheduleDashboardRefresh(60);
+    };
+
+    chrome.bookmarks.onCreated?.addListener(refreshBookmarks);
+    chrome.bookmarks.onRemoved?.addListener(refreshBookmarks);
+    chrome.bookmarks.onChanged?.addListener(refreshBookmarks);
+    chrome.bookmarks.onMoved?.addListener(refreshBookmarks);
+    chrome.bookmarks.onChildrenReordered?.addListener(refreshBookmarks);
+  }
 }
 
 async function deleteSession(sessionId) {
@@ -2749,6 +3269,8 @@ function renderArchiveItem(item) {
 async function renderStaticDashboard() {
   applyStaticText();
   await renderQuickLinksSection();
+  await renderBookmarkBoardSection();
+  await renderBookmarkFolderPicker();
 
   // --- Header ---
   const greetingEl = document.getElementById('greeting');
@@ -2994,6 +3516,52 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'set-bookmark-open-mode') {
+    const mode = actionEl.dataset.openMode;
+    if (!mode || mode === bookmarkOpenMode) return;
+    await setBookmarkOpenModePreference(mode);
+    syncBookmarkOpenModeControls();
+    showToast(t('settingsSaved'));
+    return;
+  }
+
+  if (action === 'toggle-bookmark-board') {
+    await setBookmarkBoardCollapsedPreference(!isBookmarkBoardCollapsed);
+    await renderBookmarkBoardSection();
+    return;
+  }
+
+  if (action === 'select-bookmark-folder') {
+    const folderId = actionEl.dataset.bookmarkFolderId;
+    const folder = bookmarkFolders.find(item => item.id === folderId);
+    if (!folder) return;
+    await saveBookmarkBoardConfigPreference({
+      ...bookmarkBoardConfig,
+      folderId: folder.id,
+      folderTitle: getBookmarkFolderDisplayPath(folder),
+      currentFolderId: folder.id,
+      currentFolderTitle: getBookmarkFolderDisplayName(folder),
+    });
+    bookmarkBoardSearchQuery = '';
+    bookmarkBoardItems = [];
+    bookmarkBoardCurrentFolder = null;
+    await renderBookmarkFolderPicker();
+    await renderBookmarkBoardSection();
+    showToast(t('toastBookmarkFolderSaved'));
+    return;
+  }
+
+  if (action === 'clear-bookmark-folder') {
+    await clearBookmarkBoardConfigPreference();
+    bookmarkBoardItems = [];
+    bookmarkBoardCurrentFolder = null;
+    bookmarkBoardSearchQuery = '';
+    await renderBookmarkFolderPicker();
+    await renderBookmarkBoardSection();
+    showToast(t('toastBookmarkFolderCleared'));
+    return;
+  }
+
   if (action === 'choose-background-image') {
     const input = document.getElementById('backgroundImageInput');
     if (!(input instanceof HTMLInputElement)) return;
@@ -3153,6 +3721,93 @@ document.addEventListener('click', async (e) => {
       console.warn('[tab-out] Could not open quick link:', err);
       showToast(t('toastQuickLinkInvalidUrl'));
     }
+    return;
+  }
+
+  if (action === 'open-bookmark-board-item') {
+    const url = actionEl.dataset.bookmarkUrl;
+    if (!url) return;
+
+    try {
+      if (bookmarkOpenMode === 'current-tab') {
+        const currentTab = await chrome.tabs.getCurrent();
+        if (currentTab?.id) {
+          await chrome.tabs.update(currentTab.id, { url, active: true });
+        } else {
+          await chrome.tabs.create({ url });
+        }
+      } else {
+        await chrome.tabs.create({ url });
+      }
+    } catch (err) {
+      console.warn('[tab-out] Could not open bookmark board item:', err);
+      showToast(t('toastBookmarkOpenFailed'));
+    }
+    return;
+  }
+
+  if (action === 'delete-bookmark-board-item') {
+    e.preventDefault();
+    e.stopPropagation();
+    const bookmarkId = actionEl.dataset.bookmarkId;
+    const item = bookmarkBoardItems.find(entry => entry.type === 'bookmark' && entry.id === bookmarkId);
+    if (!bookmarkId || !item) return;
+    if (!window.confirm(t('bookmarkBoardDeleteConfirm', item.title))) return;
+
+    try {
+      await chrome.bookmarks.remove(bookmarkId);
+      bookmarkBoardItems = [];
+      await renderBookmarkBoardSection();
+      showToast(t('toastBookmarkDeleted'));
+    } catch (err) {
+      console.warn('[tab-out] Could not delete bookmark:', err);
+      showToast(t('toastBookmarkDeleteFailed'));
+    }
+    return;
+  }
+
+  if (action === 'open-bookmark-board-folder') {
+    const folderId = actionEl.dataset.bookmarkFolderId;
+    const folder = bookmarkBoardItems.find(item => item.type === 'folder' && item.id === folderId);
+    if (!folder) return;
+
+    await saveBookmarkBoardConfigPreference({
+      ...bookmarkBoardConfig,
+      currentFolderId: folder.id,
+      currentFolderTitle: folder.title,
+    });
+    bookmarkBoardSearchQuery = '';
+    bookmarkBoardItems = [];
+    bookmarkBoardCurrentFolder = null;
+    await renderBookmarkBoardSection();
+    return;
+  }
+
+  if (action === 'bookmark-board-go-up') {
+    const currentFolderId = bookmarkBoardConfig.currentFolderId || bookmarkBoardConfig.folderId;
+    if (!currentFolderId || currentFolderId === bookmarkBoardConfig.folderId) return;
+    if (!bookmarkBoardCurrentFolder?.parentId) {
+      await loadBookmarkBoardItems();
+    }
+
+    const parentId = bookmarkBoardCurrentFolder?.parentId || bookmarkBoardConfig.folderId;
+    const nextFolderId = parentId === bookmarkBoardConfig.folderId || !parentId ? bookmarkBoardConfig.folderId : parentId;
+    let nextTitle = bookmarkBoardConfig.folderTitle;
+
+    try {
+      const [parentNode] = await chrome.bookmarks.get(nextFolderId);
+      if (parentNode?.title) nextTitle = parentNode.title;
+    } catch {}
+
+    await saveBookmarkBoardConfigPreference({
+      ...bookmarkBoardConfig,
+      currentFolderId: nextFolderId,
+      currentFolderTitle: nextTitle,
+    });
+    bookmarkBoardSearchQuery = '';
+    bookmarkBoardItems = [];
+    bookmarkBoardCurrentFolder = null;
+    await renderBookmarkBoardSection();
     return;
   }
 
@@ -3551,6 +4206,20 @@ document.getElementById('settingsModalBackdrop')?.addEventListener('click', (e) 
   if (e.target.id === 'settingsModalBackdrop') setSettingsModalOpen(false);
 });
 
+document.getElementById('bookmarkFolderSearchInput')?.addEventListener('input', async (e) => {
+  const input = e.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  bookmarkFolderSearchQuery = input.value || '';
+  await renderBookmarkFolderPicker();
+});
+
+document.getElementById('bookmarkBoardSearchInput')?.addEventListener('input', async (e) => {
+  const input = e.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  bookmarkBoardSearchQuery = input.value || '';
+  await renderBookmarkBoardSection();
+});
+
 document.addEventListener('click', (e) => {
   if (!isSessionPanelOpen && !isStashMenuOpen) return;
   const tools = document.getElementById('floatingTools');
@@ -3767,6 +4436,9 @@ async function initializeApp() {
   await loadThemePreference();
   await loadBackgroundPreference();
   await loadQuickLinksOpenModePreference();
+  await loadBookmarkBoardConfigPreference();
+  await loadBookmarkBoardCollapsedPreference();
+  await loadBookmarkOpenModePreference();
   await loadOpenTabsViewPreference();
   registerChromeStateListeners();
   await renderDashboard();

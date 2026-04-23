@@ -39,6 +39,27 @@
     </div>
   </section>
 
+  <section class="bookmark-board-section" id="bookmarkBoardSection">
+    <div class="bookmark-board-shell">
+      <div class="bookmark-board-header">
+        <div class="bookmark-board-heading">
+          <h2 id="bookmarkBoardTitle"></h2>
+          <p class="bookmark-board-subtitle" id="bookmarkBoardSubtitle"></p>
+        </div>
+        <div class="bookmark-board-tools">
+          <button type="button" class="bookmark-board-toggle" data-action="toggle-bookmark-board" id="bookmarkBoardToggleBtn"></button>
+          <button type="button" class="bookmark-board-back" data-action="bookmark-board-go-up" id="bookmarkBoardBackBtn" style="display:none"></button>
+          <div class="bookmark-board-meta" id="bookmarkBoardMeta"></div>
+          <label class="bookmark-board-search-shell" id="bookmarkBoardSearchShell" style="display:none">
+            <input type="search" class="bookmark-board-search" id="bookmarkBoardSearchInput">
+          </label>
+        </div>
+      </div>
+      <div class="bookmark-board-empty" id="bookmarkBoardEmpty" style="display:none"></div>
+      <div class="bookmark-board-list" id="bookmarkBoardList"></div>
+    </div>
+  </section>
+
   <!-- ================================================================
        TABNEST DUPES BANNER — appears when you have extra TabNest tabs open
        Hidden by default; app.js shows it when dupeTabOutCount > 1
@@ -242,6 +263,7 @@
       <aside class="settings-nav" id="settingsNav">
         <button type="button" class="settings-nav-item" data-action="show-settings-panel" data-settings-panel="appearance" id="settingsAppearanceTab"></button>
         <button type="button" class="settings-nav-item" data-action="show-settings-panel" data-settings-panel="links" id="settingsLinksTab"></button>
+        <button type="button" class="settings-nav-item" data-action="show-settings-panel" data-settings-panel="bookmarks" id="settingsBookmarksTab"></button>
       </aside>
       <div class="settings-content">
         <section class="settings-panel" data-settings-panel="appearance">
@@ -273,6 +295,26 @@
             <div class="settings-choice-list" id="settingsLinkOpenModeChoices">
               <button type="button" class="settings-choice" data-action="set-quick-link-open-mode" data-open-mode="current-tab" id="settingsOpenModeCurrentBtn"></button>
               <button type="button" class="settings-choice" data-action="set-quick-link-open-mode" data-open-mode="new-tab" id="settingsOpenModeNewBtn"></button>
+            </div>
+          </div>
+        </section>
+        <section class="settings-panel" data-settings-panel="bookmarks" style="display:none">
+          <div class="settings-group">
+            <div class="settings-group-label" id="settingsBookmarkFolderLabel"></div>
+            <p class="settings-group-copy" id="settingsBookmarkFolderHint"></p>
+            <div class="settings-action-row">
+              <input type="search" class="settings-folder-search" id="bookmarkFolderSearchInput">
+              <button type="button" class="action-btn" data-action="clear-bookmark-folder" id="bookmarkFolderClearBtn" hidden></button>
+            </div>
+            <div class="bookmark-folder-list" id="bookmarkFolderList"></div>
+            <div class="bookmark-folder-empty" id="bookmarkFolderEmpty" style="display:none"></div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-label" id="settingsBookmarkOpenModeLabel"></div>
+            <p class="settings-group-copy" id="settingsBookmarkOpenModeHint"></p>
+            <div class="settings-choice-list" id="settingsBookmarkOpenModeChoices">
+              <button type="button" class="settings-choice" data-action="set-bookmark-open-mode" data-open-mode="current-tab" id="settingsBookmarkOpenModeCurrentBtn"></button>
+              <button type="button" class="settings-choice" data-action="set-bookmark-open-mode" data-open-mode="new-tab" id="settingsBookmarkOpenModeNewBtn"></button>
             </div>
           </div>
         </section>
