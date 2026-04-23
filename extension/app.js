@@ -91,7 +91,9 @@ const MESSAGES = {
     bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} 个书签`,
     bookmarkBoardMetaWithFolders: (folder, bookmarkCount, folderCount) => `${folder} · ${bookmarkCount} 个书签 · ${folderCount} 个子目录`,
     bookmarkBoardSearchPlaceholder: '搜索当前目录',
-    bookmarkBoardEmpty: '还没有选择书签目录。去设置里指定一个高频目录吧。',
+    bookmarkBoardEmptyTitle: '先选择一个书签目录',
+    bookmarkBoardEmpty: '把近期高频使用的书签目录固定到这里，首页会直接平铺展示其中的链接和子目录。',
+    bookmarkBoardEmptyAction: '选择书签目录',
     bookmarkBoardEmptyNoResults: '当前目录里没有匹配结果。',
     bookmarkBoardEmptyFolder: '这个目录下还没有书签或子目录。',
     bookmarkBoardItemOpen: '打开书签',
@@ -271,7 +273,9 @@ const MESSAGES = {
     bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} bookmarks`,
     bookmarkBoardMetaWithFolders: (folder, bookmarkCount, folderCount) => `${folder} · ${bookmarkCount} bookmarks · ${folderCount} folders`,
     bookmarkBoardSearchPlaceholder: 'Search current folder',
-    bookmarkBoardEmpty: 'No bookmark folder selected yet. Pick one in Settings.',
+    bookmarkBoardEmptyTitle: 'Choose a bookmark folder first',
+    bookmarkBoardEmpty: 'Pin a high-frequency bookmark folder here and this page will flatten its links and subfolders for faster access.',
+    bookmarkBoardEmptyAction: 'Choose folder',
     bookmarkBoardEmptyNoResults: 'No items match this search.',
     bookmarkBoardEmptyFolder: 'This folder does not contain bookmarks or subfolders yet.',
     bookmarkBoardItemOpen: 'Open bookmark',
@@ -708,6 +712,15 @@ function setSettingsModalOpen(nextOpen) {
     setSessionPanelOpen(false);
     setCurrentSettingsPanel(currentSettingsPanel);
   }
+}
+
+function openBookmarkFolderSettings() {
+  currentSettingsPanel = 'bookmarks';
+  setSettingsModalOpen(true);
+  setCurrentSettingsPanel('bookmarks');
+  window.setTimeout(() => {
+    document.getElementById('bookmarkFolderSearchInput')?.focus();
+  }, 0);
 }
 
 async function loadQuickLinksOpenModePreference() {
@@ -1554,14 +1567,14 @@ function renderBookmarkBoardCard(item) {
   const safeTitle = escapeHtml(item.title);
   const safeUrl = escapeHtml(item.url);
   const safeId = escapeHtml(item.id);
-  const faviconUrl = escapeHtml(getFaviconSource(item.url, item.title, 48));
+  const faviconUrl = escapeHtml(getFaviconSource(item.url, item.title, 32));
 
   return `
     <div class="bookmark-board-card bookmark-board-site-card" title="${safeTitle}">
       <button type="button" class="bookmark-board-card-main" data-action="open-bookmark-board-item" data-bookmark-url="${safeUrl}">
         <div class="bookmark-board-card-favicon">
           <img src="${faviconUrl}" alt="" data-hide-on-error="true" data-show-fallback-on-error="next">
-          <span class="bookmark-board-card-fallback">${escapeHtml(getQuickLinkMonogram(item.title, item.url).slice(0, 2) || 'BK')}</span>
+          <span class="bookmark-board-card-fallback" style="display:none">${escapeHtml(getQuickLinkMonogram(item.title, item.url).slice(0, 2) || 'BK')}</span>
         </div>
         <div class="bookmark-board-card-copy">
           <div class="bookmark-board-card-title">${safeTitle}</div>
@@ -1617,6 +1630,18 @@ async function renderBookmarkBoardSection() {
     toggleBtn.setAttribute('aria-expanded', isBookmarkBoardCollapsed ? 'false' : 'true');
   }
 
+  if (isBookmarkBoardCollapsed) {
+    sectionEl.style.display = 'block';
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'none';
+    searchShell.style.display = 'none';
+    if (backBtn) backBtn.style.display = 'none';
+    metaEl.textContent = bookmarkBoardConfig.folderId
+      ? (bookmarkBoardConfig.currentFolderTitle || bookmarkBoardConfig.folderTitle)
+      : '';
+    return;
+  }
+
   if (!bookmarkBoardConfig.folderId) {
     sectionEl.style.display = 'block';
     metaEl.textContent = '';
@@ -1624,16 +1649,21 @@ async function renderBookmarkBoardSection() {
     if (backBtn) backBtn.style.display = 'none';
     listEl.innerHTML = '';
     emptyEl.style.display = 'block';
-    emptyEl.textContent = t('bookmarkBoardEmpty');
-    return;
-  }
-
-  if (isBookmarkBoardCollapsed) {
-    listEl.innerHTML = '';
-    emptyEl.style.display = 'none';
-    searchShell.style.display = 'none';
-    if (backBtn) backBtn.style.display = 'none';
-    metaEl.textContent = bookmarkBoardConfig.currentFolderTitle || bookmarkBoardConfig.folderTitle;
+    emptyEl.innerHTML = `
+      <div class="bookmark-board-empty-copy">
+        <div class="bookmark-board-empty-title">${escapeHtml(t('bookmarkBoardEmptyTitle'))}</div>
+        <p>${escapeHtml(t('bookmarkBoardEmpty'))}</p>
+      </div>
+      <button type="button" class="bookmark-board-empty-action" data-action="open-bookmark-folder-settings">
+        <span class="bookmark-board-empty-action-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.18c.6 0 1.176.238 1.6.663l1.057 1.057c.424.424 1 .662 1.6.662H18A2.25 2.25 0 0 1 20.25 9.132V17.25A2.25 2.25 0 0 1 18 19.5H6A2.25 2.25 0 0 1 3.75 17.25V6.75Z" />
+          </svg>
+        </span>
+        <span>${escapeHtml(t('bookmarkBoardEmptyAction'))}</span>
+        <span class="bookmark-board-empty-action-arrow" aria-hidden="true">›</span>
+      </button>
+    `;
     return;
   }
 
@@ -3484,6 +3514,11 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'open-settings-modal') {
     setSettingsModalOpen(true);
+    return;
+  }
+
+  if (action === 'open-bookmark-folder-settings') {
+    openBookmarkFolderSettings();
     return;
   }
 
