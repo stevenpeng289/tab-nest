@@ -2719,11 +2719,14 @@ function renderDeferredItem(item) {
 function renderArchiveItem(item) {
   const ago = item.completedAt ? timeAgo(item.completedAt) : timeAgo(item.savedAt);
   return `
-    <div class="archive-item">
+    <div class="archive-item" data-deferred-id="${item.id}">
       <a href="${item.url}" target="_blank" rel="noopener" class="archive-item-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
         ${item.title || item.url}
       </a>
       <span class="archive-item-date">${ago}</span>
+      <button class="archive-dismiss" data-action="dismiss-archived" data-deferred-id="${item.id}" title="${t('dismissTitle')}" aria-label="${t('dismissTitle')}">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+      </button>
     </div>`;
 }
 
@@ -3374,6 +3377,24 @@ document.addEventListener('click', async (e) => {
     await dismissSavedTab(id);
 
     const item = actionEl.closest('.deferred-item');
+    if (item) {
+      item.classList.add('removing');
+      setTimeout(() => {
+        item.remove();
+        renderDeferredColumn();
+      }, 300);
+    }
+    return;
+  }
+
+  // ---- Dismiss an archived tab (removes it entirely) ----
+  if (action === 'dismiss-archived') {
+    const id = actionEl.dataset.deferredId;
+    if (!id) return;
+
+    await dismissSavedTab(id);
+
+    const item = actionEl.closest('.archive-item');
     if (item) {
       item.classList.add('removing');
       setTimeout(() => {

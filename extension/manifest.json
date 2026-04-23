@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabNest",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Organize, stash, and reorder your tabs from a calm new tab page.",
   "permissions": ["tabs", "storage", "favicon"],
   "chrome_url_overrides": { "newtab": "index.html" },

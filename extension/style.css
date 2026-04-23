@@ -3933,6 +3933,7 @@ body.theme-dark .floating-tool-badge {
   gap: 8px;
   padding: 6px 0;
   border-bottom: 1px solid rgba(154, 145, 138, 0.08);
+  animation: fadeUp 0.3s ease both;
 }
 
 .archive-item:last-child {
@@ -3960,6 +3961,37 @@ body.theme-dark .floating-tool-badge {
   color: var(--muted);
   opacity: 0.6;
   flex-shrink: 0;
+}
+
+.archive-dismiss {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.25;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.archive-dismiss svg {
+  width: 14px;
+  height: 14px;
+}
+
+.archive-item:hover .archive-dismiss,
+.archive-dismiss:focus-visible {
+  opacity: 1;
+}
+
+.archive-dismiss:hover {
+  color: var(--status-abandoned);
+}
+
+.archive-item.removing {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 @media (max-width: 720px) {
