@@ -30,6 +30,10 @@ let bookmarkFolders = [];
 let bookmarkBoardItems = [];
 let bookmarkBoardCurrentFolder = null;
 let bookmarkBoardStateById = {};
+let bookmarkBoardSelectionStateById = {};
+let bookmarkCollections = [];
+let bookmarkCollectionModalMode = 'create';
+let activeBookmarkCollectionId = '';
 let bookmarkFolderSearchQuery = '';
 let bookmarkBoardSearchQuery = '';
 let bookmarkBoardSearchQueries = {};
@@ -69,6 +73,7 @@ const BOOKMARK_BOARD_CONFIG_STORAGE_KEY = 'bookmarkBoardConfig';
 const BOOKMARK_OPEN_MODE_STORAGE_KEY = 'bookmarkOpenMode';
 const BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY = 'bookmarkBoardCollapsed';
 const BOOKMARK_BOARD_DISPLAY_LIMIT_STORAGE_KEY = 'bookmarkBoardDisplayLimit';
+const BOOKMARK_COLLECTIONS_STORAGE_KEY = 'bookmarkCollections';
 const OPEN_TABS_VIEW_STORAGE_KEY = 'openTabsView';
 const SESSIONS_VIEWED_COUNT_KEY = 'sessionsViewedCount'; // New storage key
 const BOOKMARK_BOARD_MAX_ENTRIES = 4;
@@ -98,7 +103,7 @@ const MESSAGES = {
     bookmarkBoardSubtitle: '把某个书签目录里的内容直接铺开，省去层层点开的时间。',
     bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} 个书签`,
     bookmarkBoardMetaWithFolders: (folder, bookmarkCount, folderCount) => `${folder} · ${bookmarkCount} 个书签 · ${folderCount} 个子目录`,
-    bookmarkBoardSearchPlaceholder: '搜索当前目录',
+    bookmarkBoardSearchPlaceholder: '搜索当前目录书签',
     bookmarkBoardEmptyTitle: '先选择一个书签目录',
     bookmarkBoardEmpty: '把近期高频使用的书签目录固定到这里，首页会直接平铺展示其中的链接和子目录。',
     bookmarkBoardEmptyAction: '选择书签目录',
@@ -112,6 +117,38 @@ const MESSAGES = {
     bookmarkBoardDelete: '删除书签',
     bookmarkBoardDeleteConfirm: title => `要删除书签“${title}”吗？`,
     bookmarkBoardAdd: '添加目录',
+    bookmarkBoardBatchSelect: '批量打开',
+    bookmarkBoardBatchCancel: '退出批量打开',
+    bookmarkBoardBatchOpenSelected: '打开选中',
+    bookmarkBoardBatchOpenAll: '打开当前目录',
+    bookmarkBoardBatchSaveCollection: '保存为资料组合',
+    bookmarkBoardBatchSelectAll: '全选书签',
+    bookmarkBoardBatchClear: '清空',
+    bookmarkBoardBatchSelectedCount: count => `已选 ${count} 个书签`,
+    bookmarkBoardBatchItemToggle: '选择加入本次打开',
+    bookmarkBoardBatchHint: '勾选想打开的书签，再一次打开',
+    bookmarkCollectionTitle: '资料组合',
+    bookmarkCollectionSubtitle: '把这次挑好的资料沉淀下来，下次可以直接一键开启。',
+    bookmarkCollectionCount: count => `${count} 个书签`,
+    bookmarkCollectionOpen: '一键开启',
+    bookmarkCollectionDelete: '删除资料组合',
+    bookmarkCollectionEmpty: '先在书签工作台里选择几条书签，再保存为资料组合。',
+    bookmarkCollectionSaveTitle: '保存资料组合',
+    bookmarkCollectionCreateMode: '新建组合',
+    bookmarkCollectionAppendMode: '追加到已有组合',
+    bookmarkCollectionSaveNameLabel: '组合名称',
+    bookmarkCollectionExistingLabel: '选择已有组合',
+    bookmarkCollectionSaveNamePlaceholder: '例如 出海开发资料 / 产品灵感 / 常用工具',
+    bookmarkCollectionSaveHint: count => `将保存当前选中的 ${count} 个书签，后续可直接一键开启。`,
+    bookmarkCollectionSaveSubmit: '保存组合',
+    bookmarkCollectionAppendSubmit: '追加',
+    bookmarkCollectionExistingPlaceholder: '请选择一个资料组合',
+    bookmarkCollectionDeleteConfirm: title => `要删除资料组合“${title}”吗？`,
+    bookmarkCollectionViewDetail: '查看详情',
+    bookmarkCollectionDetailEyebrow: '资料组合详情',
+    bookmarkCollectionDetailEmpty: '这个资料组合里暂时还没有书签。',
+    bookmarkCollectionDetailOpenItem: '打开这条书签',
+    bookmarkCollectionDetailOpenAll: '开启整个组合',
     bookmarkBoardRemove: '移除工作台',
     bookmarkBoardRemoveConfirm: title => `要从首页移除“${title}”这个书签工作台吗？不会删除原始书签。`,
     confirmDialogEyebrow: '请确认这一步操作',
@@ -195,6 +232,15 @@ const MESSAGES = {
     toastBookmarkBoardRemoved: '书签工作台已移除',
     toastBookmarkBoardLimitReached: `最多只能添加 ${BOOKMARK_BOARD_MAX_ENTRIES} 个书签工作台`,
     toastBookmarkOpenFailed: '打开书签失败',
+    toastBookmarkBatchEmpty: '请先选择要打开的书签',
+    toastBookmarkBatchOpened: count => `已打开 ${count} 个书签`,
+    toastBookmarkBatchOpenedWithReuse: (opened, reused) => `已打开 ${opened} 个书签，复用 ${reused} 个已打开标签`,
+    toastBookmarkCollectionSaved: '资料组合已保存',
+    toastBookmarkCollectionUpdated: '已补充到资料组合，并自动去重',
+    toastBookmarkCollectionDeleted: '资料组合已删除',
+    toastBookmarkCollectionInvalidName: '请输入资料组合名称',
+    toastBookmarkCollectionSelectExisting: '请选择要补充的资料组合',
+    toastBookmarkCollectionEmpty: '请先选择要保存的书签',
     toastBookmarkDeleted: '书签已删除',
     toastBookmarkDeleteFailed: '删除书签失败',
     toastBookmarksUnavailable: '当前无法读取书签',
@@ -297,7 +343,7 @@ const MESSAGES = {
     bookmarkBoardSubtitle: 'Flatten one bookmark folder onto your new tab page for faster access.',
     bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} bookmarks`,
     bookmarkBoardMetaWithFolders: (folder, bookmarkCount, folderCount) => `${folder} · ${bookmarkCount} bookmarks · ${folderCount} folders`,
-    bookmarkBoardSearchPlaceholder: 'Search current folder',
+    bookmarkBoardSearchPlaceholder: 'Search bookmarks in this folder',
     bookmarkBoardEmptyTitle: 'Choose a bookmark folder first',
     bookmarkBoardEmpty: 'Pin a high-frequency bookmark folder here and this page will flatten its links and subfolders for faster access.',
     bookmarkBoardEmptyAction: 'Choose folder',
@@ -311,6 +357,38 @@ const MESSAGES = {
     bookmarkBoardDelete: 'Delete bookmark',
     bookmarkBoardDeleteConfirm: title => `Delete bookmark "${title}"?`,
     bookmarkBoardAdd: 'Add folder',
+    bookmarkBoardBatchSelect: 'Open multiple',
+    bookmarkBoardBatchCancel: 'Exit multi-open',
+    bookmarkBoardBatchOpenSelected: 'Open selected',
+    bookmarkBoardBatchOpenAll: 'Open folder',
+    bookmarkBoardBatchSaveCollection: 'Save as bundle',
+    bookmarkBoardBatchSelectAll: 'Select all bookmarks',
+    bookmarkBoardBatchClear: 'Clear',
+    bookmarkBoardBatchSelectedCount: count => `${count} bookmarks selected`,
+    bookmarkBoardBatchItemToggle: 'Add to multi-open',
+    bookmarkBoardBatchHint: 'Pick the bookmarks you want, then open them together',
+    bookmarkCollectionTitle: 'Resource bundles',
+    bookmarkCollectionSubtitle: 'Save this picked set so you can launch it again with one click.',
+    bookmarkCollectionCount: count => `${count} bookmark${count !== 1 ? 's' : ''}`,
+    bookmarkCollectionOpen: 'Launch',
+    bookmarkCollectionDelete: 'Delete bundle',
+    bookmarkCollectionEmpty: 'Select a few bookmarks in the board first, then save them as a reusable bundle.',
+    bookmarkCollectionSaveTitle: 'Save resource bundle',
+    bookmarkCollectionCreateMode: 'Create new',
+    bookmarkCollectionAppendMode: 'Add to existing',
+    bookmarkCollectionSaveNameLabel: 'Bundle name',
+    bookmarkCollectionExistingLabel: 'Choose a bundle',
+    bookmarkCollectionSaveNamePlaceholder: 'For example Indie hacking / Product research / Tool stack',
+    bookmarkCollectionSaveHint: count => `Save the ${count} selected bookmarks so you can launch them again later.`,
+    bookmarkCollectionSaveSubmit: 'Save bundle',
+    bookmarkCollectionAppendSubmit: 'Add',
+    bookmarkCollectionExistingPlaceholder: 'Select a resource bundle',
+    bookmarkCollectionDeleteConfirm: title => `Delete the bundle "${title}"?`,
+    bookmarkCollectionViewDetail: 'View details',
+    bookmarkCollectionDetailEyebrow: 'Bundle details',
+    bookmarkCollectionDetailEmpty: 'This bundle does not contain bookmarks yet.',
+    bookmarkCollectionDetailOpenItem: 'Open this bookmark',
+    bookmarkCollectionDetailOpenAll: 'Launch bundle',
     bookmarkBoardRemove: 'Remove board',
     bookmarkBoardRemoveConfirm: title => `Remove "${title}" from the homepage? This will not delete the original bookmarks.`,
     confirmDialogEyebrow: 'Please confirm this action',
@@ -396,6 +474,15 @@ const MESSAGES = {
     toastBookmarkBoardRemoved: 'Bookmark board removed',
     toastBookmarkBoardLimitReached: `You can add up to ${BOOKMARK_BOARD_MAX_ENTRIES} bookmark boards`,
     toastBookmarkOpenFailed: 'Could not open bookmark',
+    toastBookmarkBatchEmpty: 'Choose bookmarks to open first',
+    toastBookmarkBatchOpened: count => `Opened ${count} bookmarks`,
+    toastBookmarkBatchOpenedWithReuse: (opened, reused) => `Opened ${opened} bookmarks and reused ${reused} existing tabs`,
+    toastBookmarkCollectionSaved: 'Bundle saved',
+    toastBookmarkCollectionUpdated: 'Bundle updated and deduped',
+    toastBookmarkCollectionDeleted: 'Bundle deleted',
+    toastBookmarkCollectionInvalidName: 'Enter a bundle name',
+    toastBookmarkCollectionSelectExisting: 'Choose a bundle first',
+    toastBookmarkCollectionEmpty: 'Choose bookmarks to save first',
     toastBookmarkDeleted: 'Bookmark deleted',
     toastBookmarkDeleteFailed: 'Could not delete bookmark',
     toastBookmarksUnavailable: 'Bookmarks are unavailable right now',
@@ -867,6 +954,152 @@ async function setBookmarkOpenModePreference(mode) {
   await chrome.storage.local.set({ [BOOKMARK_OPEN_MODE_STORAGE_KEY]: bookmarkOpenMode });
 }
 
+function normalizeBookmarkCollectionItem(item = {}, index = 0) {
+  const title = String(item.title || '').trim();
+  const url = String(item.url || '').trim();
+  return {
+    id: String(item.id || `bookmark-collection-item-${index}`),
+    title: title || summarizeUrl(url),
+    url,
+    order: Number.isFinite(item.order) ? item.order : index,
+  };
+}
+
+function normalizeBookmarkCollection(collection = {}, index = 0) {
+  const items = Array.isArray(collection.items)
+    ? collection.items
+      .map((item, itemIndex) => normalizeBookmarkCollectionItem(item, itemIndex))
+      .filter(item => item.url)
+    : [];
+
+  return {
+    id: String(collection.id || `bookmark-collection-${Date.now()}-${index}`),
+    name: String(collection.name || '').trim(),
+    boardId: String(collection.boardId || '').trim(),
+    boardTitle: String(collection.boardTitle || '').trim(),
+    createdAt: String(collection.createdAt || new Date().toISOString()),
+    items,
+  };
+}
+
+function sortBookmarkCollections(list) {
+  return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+function mergeBookmarkCollectionItems(existingItems = [], incomingItems = []) {
+  const merged = [];
+  const seenUrls = new Set();
+  const appendItems = [...existingItems, ...incomingItems];
+
+  appendItems.forEach((item, index) => {
+    const normalized = normalizeBookmarkCollectionItem(item, index);
+    if (!normalized.url || seenUrls.has(normalized.url)) return;
+    seenUrls.add(normalized.url);
+    merged.push({
+      ...normalized,
+      order: merged.length,
+    });
+  });
+
+  return merged;
+}
+
+async function loadBookmarkCollections() {
+  try {
+    const { [BOOKMARK_COLLECTIONS_STORAGE_KEY]: stored = [] } = await chrome.storage.local.get(BOOKMARK_COLLECTIONS_STORAGE_KEY);
+    bookmarkCollections = sortBookmarkCollections(
+      (stored || [])
+        .map((collection, index) => normalizeBookmarkCollection(collection, index))
+        .filter(collection => collection.name && collection.items.length > 0)
+    );
+  } catch {
+    bookmarkCollections = [];
+  }
+}
+
+async function saveBookmarkCollections(list) {
+  bookmarkCollections = sortBookmarkCollections(
+    (list || [])
+      .map((collection, index) => normalizeBookmarkCollection(collection, index))
+      .filter(collection => collection.name && collection.items.length > 0)
+  );
+  await chrome.storage.local.set({ [BOOKMARK_COLLECTIONS_STORAGE_KEY]: bookmarkCollections });
+}
+
+function getBookmarkCollectionById(collectionId) {
+  return bookmarkCollections.find(item => item.id === collectionId) || null;
+}
+
+function closeBookmarkCollectionSelectMenu() {
+  const menu = document.getElementById('bookmarkCollectionSelectMenu');
+  const trigger = document.getElementById('bookmarkCollectionSelectTrigger');
+  if (menu) menu.style.display = 'none';
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+}
+
+function syncBookmarkCollectionSelectControl() {
+  const hiddenInput = document.getElementById('bookmarkCollectionExistingSelect');
+  const valueEl = document.getElementById('bookmarkCollectionSelectValue');
+  const menu = document.getElementById('bookmarkCollectionSelectMenu');
+  const selectedId = hiddenInput instanceof HTMLInputElement ? hiddenInput.value : '';
+  const selectedCollection = selectedId ? getBookmarkCollectionById(selectedId) : null;
+
+  if (valueEl) {
+    valueEl.textContent = selectedCollection?.name || t('bookmarkCollectionExistingPlaceholder');
+    valueEl.classList.toggle('is-placeholder', !selectedCollection);
+  }
+
+  if (menu) {
+    menu.innerHTML = [
+      `<button type="button" class="bookmark-collection-select-option${selectedCollection ? '' : ' is-selected'}" data-action="select-bookmark-collection-option" data-bookmark-collection-id="">
+        ${escapeHtml(t('bookmarkCollectionExistingPlaceholder'))}
+      </button>`,
+      ...bookmarkCollections.map(collection => `
+        <button type="button" class="bookmark-collection-select-option${collection.id === selectedId ? ' is-selected' : ''}" data-action="select-bookmark-collection-option" data-bookmark-collection-id="${escapeHtml(collection.id)}">
+          ${escapeHtml(collection.name)}
+        </button>
+      `),
+    ].join('');
+  }
+}
+
+function syncBookmarkCollectionModeControls() {
+  const switchEl = document.getElementById('bookmarkCollectionModeSwitch');
+  const existingField = document.getElementById('bookmarkCollectionExistingField');
+  const existingLabel = document.getElementById('bookmarkCollectionExistingLabel');
+  const existingSelect = document.getElementById('bookmarkCollectionExistingSelect');
+  const nameLabel = document.getElementById('bookmarkCollectionNameLabel');
+  const nameInput = document.getElementById('bookmarkCollectionNameInput');
+  const nameField = nameLabel?.closest('.quick-link-field');
+
+  if (switchEl) {
+    switchEl.innerHTML = `
+      <button type="button" class="bookmark-collection-mode-btn${bookmarkCollectionModalMode === 'create' ? ' is-active' : ''}" data-action="set-bookmark-collection-mode" data-bookmark-collection-mode="create" aria-pressed="${bookmarkCollectionModalMode === 'create' ? 'true' : 'false'}">
+        ${escapeHtml(t('bookmarkCollectionCreateMode'))}
+      </button>
+      <button type="button" class="bookmark-collection-mode-btn${bookmarkCollectionModalMode === 'append' ? ' is-active' : ''}" data-action="set-bookmark-collection-mode" data-bookmark-collection-mode="append" aria-pressed="${bookmarkCollectionModalMode === 'append' ? 'true' : 'false'}"${bookmarkCollections.length === 0 ? ' disabled' : ''}>
+        ${escapeHtml(t('bookmarkCollectionAppendMode'))}
+      </button>
+    `;
+  }
+
+  if (existingLabel) existingLabel.textContent = t('bookmarkCollectionExistingLabel');
+  if (existingSelect instanceof HTMLInputElement && !bookmarkCollections.some(collection => collection.id === existingSelect.value)) {
+    existingSelect.value = '';
+  }
+
+  const isAppendMode = bookmarkCollectionModalMode === 'append' && bookmarkCollections.length > 0;
+  if (existingField) existingField.style.display = isAppendMode ? 'flex' : 'none';
+  if (nameField instanceof HTMLElement) nameField.style.display = isAppendMode ? 'none' : 'flex';
+  if (nameLabel) nameLabel.textContent = t('bookmarkCollectionSaveNameLabel');
+  if (nameInput) {
+    nameInput.disabled = isAppendMode;
+    nameInput.required = !isAppendMode;
+  }
+  syncBookmarkCollectionSelectControl();
+  if (!isAppendMode) closeBookmarkCollectionSelectMenu();
+}
+
 function normalizeBookmarkBoardDisplayLimit(limit) {
   const value = Number(limit);
   if (!Number.isFinite(value)) return DEFAULT_BOOKMARK_BOARD_DISPLAY_LIMIT;
@@ -1016,6 +1249,100 @@ function syncBookmarkBoardLimitControls() {
   if (noteEl) noteEl.textContent = activeConfig?.description || '';
 }
 
+function syncBookmarkCollectionModalText() {
+  const titleEl = document.getElementById('bookmarkCollectionModalTitle');
+  const nameInput = document.getElementById('bookmarkCollectionNameInput');
+  const hintEl = document.getElementById('bookmarkCollectionModalHint');
+  const cancelBtn = document.getElementById('bookmarkCollectionCancelBtn');
+  const submitBtn = document.getElementById('bookmarkCollectionSubmitBtn');
+  const closeBtn = document.getElementById('bookmarkCollectionModalCloseBtn');
+  const boardIdInput = document.getElementById('bookmarkCollectionBoardId');
+
+  let selectedCount = 0;
+  if (boardIdInput?.value) {
+    const boardState = bookmarkBoardStateById[boardIdInput.value];
+    const selectionState = getBookmarkBoardSelectionState(boardIdInput.value);
+    const items = getBookmarkItemsForBatchActions(boardState?.items || []);
+    selectedCount = items.filter(item => selectionState.selectedIds.includes(item.id)).length;
+  }
+
+  if (titleEl) titleEl.textContent = t('bookmarkCollectionSaveTitle');
+  if (nameInput) nameInput.placeholder = t('bookmarkCollectionSaveNamePlaceholder');
+  if (hintEl) hintEl.textContent = t('bookmarkCollectionSaveHint', selectedCount);
+  if (cancelBtn) cancelBtn.textContent = t('confirmDialogCancel');
+  if (submitBtn) submitBtn.textContent = bookmarkCollectionModalMode === 'append'
+    ? t('bookmarkCollectionAppendSubmit')
+    : t('bookmarkCollectionSaveSubmit');
+  if (closeBtn) {
+    closeBtn.textContent = '×';
+    closeBtn.title = t('quickLinkModalClose');
+  }
+  syncBookmarkCollectionModeControls();
+}
+
+function renderBookmarkCollectionDetailList(collection) {
+  if (!collection || !Array.isArray(collection.items) || collection.items.length === 0) return '';
+
+  return collection.items.map(item => {
+    const faviconUrl = escapeHtml(getFaviconSource(item.url, item.title, 32));
+    const monogram = escapeHtml(getQuickLinkMonogram(item.title, item.url).slice(0, 2) || 'BK');
+    const safeTitle = escapeHtml(item.title || summarizeUrl(item.url) || item.url);
+    const safeUrl = escapeHtml(item.url);
+
+    return `
+      <button
+        type="button"
+        class="bookmark-collection-detail-item"
+        data-action="open-bookmark-collection-item"
+        data-bookmark-url="${safeUrl}"
+        title="${safeTitle}"
+        aria-label="${escapeHtml(t('bookmarkCollectionDetailOpenItem'))}"
+      >
+        <span class="bookmark-collection-detail-item-favicon">
+          ${faviconUrl ? `<img src="${faviconUrl}" alt="" data-hide-on-error="true" data-show-fallback-on-error="next">` : ''}
+          <span class="bookmark-collection-detail-item-fallback"${faviconUrl ? ' style="display:none"' : ''}>${monogram}</span>
+        </span>
+        <span class="bookmark-collection-detail-item-copy">
+          <span class="bookmark-collection-detail-item-title">${safeTitle}</span>
+        </span>
+        <span class="bookmark-collection-detail-item-arrow" aria-hidden="true">›</span>
+      </button>`;
+  }).join('');
+}
+
+function syncBookmarkCollectionDetailModal() {
+  const titleEl = document.getElementById('bookmarkCollectionDetailTitle');
+  const eyebrowEl = document.getElementById('bookmarkCollectionDetailEyebrow');
+  const metaEl = document.getElementById('bookmarkCollectionDetailMeta');
+  const listEl = document.getElementById('bookmarkCollectionDetailList');
+  const emptyEl = document.getElementById('bookmarkCollectionDetailEmpty');
+  const closeBtn = document.getElementById('bookmarkCollectionDetailCloseBtn');
+  const cancelBtn = document.getElementById('bookmarkCollectionDetailCancelBtn');
+  const openBtn = document.getElementById('bookmarkCollectionDetailOpenBtn');
+  const collection = getBookmarkCollectionById(activeBookmarkCollectionId);
+  const itemCount = collection?.items?.length || 0;
+
+  if (eyebrowEl) eyebrowEl.textContent = t('bookmarkCollectionDetailEyebrow');
+  if (titleEl) titleEl.textContent = collection?.name || t('bookmarkCollectionTitle');
+  if (metaEl) metaEl.textContent = t('bookmarkCollectionCount', itemCount);
+  if (listEl) listEl.innerHTML = renderBookmarkCollectionDetailList(collection);
+  if (emptyEl) {
+    emptyEl.textContent = t('bookmarkCollectionDetailEmpty');
+    emptyEl.style.display = itemCount === 0 ? 'flex' : 'none';
+  }
+  if (closeBtn) {
+    closeBtn.textContent = '×';
+    closeBtn.title = t('quickLinkModalClose');
+    closeBtn.setAttribute('aria-label', t('quickLinkModalClose'));
+  }
+  if (cancelBtn) cancelBtn.textContent = t('confirmDialogCancel');
+  if (openBtn) {
+    openBtn.textContent = t('bookmarkCollectionDetailOpenAll');
+    openBtn.disabled = itemCount === 0;
+    openBtn.dataset.bookmarkCollectionId = collection?.id || '';
+  }
+}
+
 function applyStaticText() {
   document.documentElement.lang = currentLanguage;
 
@@ -1057,6 +1384,8 @@ function applyStaticText() {
   const quickLinkUrlInput = document.getElementById('quickLinkUrlInput');
   const quickLinkCancelBtn = document.getElementById('quickLinkCancelBtn');
   const quickLinkModalCloseBtn = document.getElementById('quickLinkModalCloseBtn');
+  const bookmarkCollectionModalCloseBtn = document.getElementById('bookmarkCollectionModalCloseBtn');
+  const bookmarkCollectionDetailCloseBtn = document.getElementById('bookmarkCollectionDetailCloseBtn');
   const settingsTitle = document.getElementById('settingsModalTitle');
   const settingsAppearanceTab = document.getElementById('settingsAppearanceTab');
   const settingsLinksTab = document.getElementById('settingsLinksTab');
@@ -1153,6 +1482,8 @@ function applyStaticText() {
   if (quickLinkCancelBtn) quickLinkCancelBtn.textContent = t('quickLinkCancel');
   if (quickLinkModalCloseBtn) quickLinkModalCloseBtn.textContent = '×';
   if (quickLinkModalCloseBtn) quickLinkModalCloseBtn.title = t('quickLinkModalClose');
+  if (bookmarkCollectionModalCloseBtn) bookmarkCollectionModalCloseBtn.textContent = '×';
+  if (bookmarkCollectionDetailCloseBtn) bookmarkCollectionDetailCloseBtn.textContent = '×';
   if (settingsTitle) settingsTitle.textContent = t('settingsTitle');
   if (settingsAppearanceTab) settingsAppearanceTab.textContent = t('settingsAppearance');
   if (settingsLinksTab) settingsLinksTab.textContent = t('settingsLinks');
@@ -1185,6 +1516,8 @@ function applyStaticText() {
   syncOpenTabsViewControls();
   setCurrentSettingsPanel(currentSettingsPanel);
   syncQuickLinkModalText();
+  syncBookmarkCollectionModalText();
+  syncBookmarkCollectionDetailModal();
 }
 
 function updateTabOutDupeBannerText(count) {
@@ -1457,6 +1790,48 @@ async function loadBookmarkBoardItems(board = bookmarkBoardConfig) {
   }
 }
 
+async function searchBookmarksInFolderTree(folderId, folderPath = '') {
+  if (!folderId || !chrome?.bookmarks?.getSubTree) return [];
+
+  try {
+    const [folderNode] = await chrome.bookmarks.getSubTree(folderId);
+    if (!folderNode) return [];
+
+    const rootTitle = String(folderNode.title || '').trim();
+    const basePath = folderPath || rootTitle;
+    const results = [];
+
+    const walk = (node, parents = []) => {
+      if (!node) return;
+      const title = String(node.title || '').trim();
+
+      if (node.url) {
+        results.push(normalizeBookmarkBoardItem({
+          id: node.id,
+          type: 'bookmark',
+          title: title || summarizeUrl(node.url),
+          url: node.url,
+          path: parents.join(' / '),
+          parentId: String(node.parentId || ''),
+          dateAdded: Number(node.dateAdded || 0),
+        }, results.length));
+        return;
+      }
+
+      const nextParents = title ? [...parents, title] : parents;
+      const children = Array.isArray(node.children) ? node.children : [];
+      children.forEach(child => walk(child, nextParents));
+    };
+
+    const children = Array.isArray(folderNode.children) ? folderNode.children : [];
+    children.forEach(child => walk(child, basePath ? [basePath] : []));
+    return results;
+  } catch (err) {
+    console.warn('[tab-out] Could not search bookmarks in folder tree:', err);
+    return [];
+  }
+}
+
 function applyBackgroundSelection({ imageDataUrl = '' } = {}) {
   customBackgroundImage = typeof imageDataUrl === 'string' ? imageDataUrl : '';
   updateSolidSurfacePalette();
@@ -1709,6 +2084,111 @@ function getVisibleBookmarkBoardEntries() {
   return getBookmarkBoardEntries().slice(0, bookmarkBoardDisplayLimit);
 }
 
+function getBookmarkBoardSelectionState(boardId) {
+  if (!boardId) {
+    return {
+      isSelectionMode: false,
+      selectedIds: [],
+    };
+  }
+
+  const existing = bookmarkBoardSelectionStateById[boardId];
+  if (existing) {
+    return {
+      isSelectionMode: !!existing.isSelectionMode,
+      selectedIds: Array.isArray(existing.selectedIds) ? [...new Set(existing.selectedIds.map(id => String(id)))] : [],
+    };
+  }
+
+  return {
+    isSelectionMode: false,
+    selectedIds: [],
+  };
+}
+
+function setBookmarkBoardSelectionState(boardId, patch = {}) {
+  if (!boardId) return;
+  const current = getBookmarkBoardSelectionState(boardId);
+  bookmarkBoardSelectionStateById = {
+    ...bookmarkBoardSelectionStateById,
+    [boardId]: {
+      isSelectionMode: typeof patch.isSelectionMode === 'boolean' ? patch.isSelectionMode : current.isSelectionMode,
+      selectedIds: Array.isArray(patch.selectedIds)
+        ? [...new Set(patch.selectedIds.map(id => String(id)))]
+        : current.selectedIds,
+    },
+  };
+}
+
+function clearBookmarkBoardSelectionState(boardId) {
+  if (!boardId) return;
+  delete bookmarkBoardSelectionStateById[boardId];
+}
+
+function getBookmarkItemsForBatchActions(items = []) {
+  return items.filter(item => item.type === 'bookmark' && item.url);
+}
+
+async function openBookmarkUrls(urls = [], { mode = bookmarkOpenMode } = {}) {
+  const normalizedUrls = [...new Set((urls || []).map(url => String(url || '').trim()).filter(Boolean))];
+  if (normalizedUrls.length === 0) {
+    return {
+      openedCount: 0,
+      reusedCount: 0,
+      reusedTabs: [],
+    };
+  }
+
+  try {
+    const allTabs = await chrome.tabs.query({});
+    const existingTabsByUrl = new Map();
+    for (const tab of allTabs) {
+      const tabUrl = getResolvedTabUrl(tab);
+      if (!tabUrl || !isRealWebTab(tab)) continue;
+      if (!existingTabsByUrl.has(tabUrl)) existingTabsByUrl.set(tabUrl, tab);
+    }
+
+    const urlsToOpen = [];
+    const reusedTabs = [];
+
+    for (const url of normalizedUrls) {
+      const existingTab = existingTabsByUrl.get(url);
+      if (existingTab) {
+        reusedTabs.push(existingTab);
+      } else {
+        urlsToOpen.push(url);
+      }
+    }
+
+    if (mode === 'current-tab' && urlsToOpen.length > 0) {
+      const [firstUrl, ...restUrls] = urlsToOpen;
+      const currentTab = await chrome.tabs.getCurrent();
+      if (currentTab?.id) {
+        await chrome.tabs.update(currentTab.id, { url: firstUrl, active: true });
+      } else {
+        await chrome.tabs.create({ url: firstUrl });
+      }
+
+      for (const url of restUrls) {
+        await chrome.tabs.create({ url, active: false });
+      }
+    } else {
+      for (const url of urlsToOpen) {
+        await chrome.tabs.create({ url, active: false });
+      }
+    }
+
+    return {
+      openedCount: urlsToOpen.length,
+      reusedCount: reusedTabs.length,
+      reusedTabs,
+    };
+  } catch (err) {
+    console.warn('[tab-out] Could not open bookmark URLs:', err);
+    throw err;
+  }
+}
+
 function restoreBookmarkBoardSearchFocus(boardId, selectionStart = null, selectionEnd = null) {
   if (!boardId) return;
   window.requestAnimationFrame(() => {
@@ -1812,6 +2292,7 @@ async function removeBookmarkBoardEntry(boardId) {
   delete bookmarkBoardStateById[board.id];
   delete bookmarkBoardSearchQueries[board.id];
   delete bookmarkBoardSearchQueries[board.folderId];
+  clearBookmarkBoardSelectionState(board.id);
   await renderBookmarkFolderPicker();
   await renderBookmarkBoardSection();
   showToast(t('toastBookmarkBoardRemoved'));
@@ -1851,16 +2332,23 @@ async function renderBookmarkFolderPicker() {
   clearBtn.textContent = t('settingsBookmarkFolderClear');
 }
 
-function renderBookmarkBoardCard(item, boardId = '') {
+function renderBookmarkBoardCard(item, boardId = '', options = {}) {
   const safeTitle = escapeHtml(item.title);
   const safeUrl = escapeHtml(item.url);
   const safeId = escapeHtml(item.id);
   const safeBoardId = escapeHtml(boardId);
   const faviconUrl = escapeHtml(getFaviconSource(item.url, item.title, 32));
+  const isSelectionMode = !!options.isSelectionMode;
+  const isSelected = !!options.isSelected;
 
   return `
-    <div class="bookmark-board-card bookmark-board-site-card" title="${safeTitle}">
-      <button type="button" class="bookmark-board-card-main" data-action="open-bookmark-board-item" data-bookmark-url="${safeUrl}">
+    <div class="bookmark-board-card bookmark-board-site-card${isSelectionMode ? ' is-selection-mode' : ''}${isSelected ? ' is-selected' : ''}" title="${safeTitle}">
+      ${isSelectionMode ? `
+        <button type="button" class="bookmark-board-select-toggle${isSelected ? ' is-selected' : ''}" data-action="toggle-bookmark-board-selection" data-bookmark-id="${safeId}" data-bookmark-board-id="${safeBoardId}" aria-pressed="${isSelected ? 'true' : 'false'}" title="${escapeHtml(t('bookmarkBoardBatchItemToggle'))}" aria-label="${escapeHtml(t('bookmarkBoardBatchItemToggle'))}">
+          <span class="bookmark-board-select-indicator" aria-hidden="true"></span>
+        </button>
+      ` : ''}
+      <button type="button" class="bookmark-board-card-main" data-action="${isSelectionMode ? 'toggle-bookmark-board-selection' : 'open-bookmark-board-item'}" data-bookmark-id="${safeId}" data-bookmark-board-id="${safeBoardId}" data-bookmark-url="${safeUrl}">
         <div class="bookmark-board-card-favicon">
           <img src="${faviconUrl}" alt="" data-hide-on-error="true" data-show-fallback-on-error="next">
           <span class="bookmark-board-card-fallback" style="display:none">${escapeHtml(getQuickLinkMonogram(item.title, item.url).slice(0, 2) || 'BK')}</span>
@@ -1869,7 +2357,7 @@ function renderBookmarkBoardCard(item, boardId = '') {
           <div class="bookmark-board-card-title">${safeTitle}</div>
         </div>
       </button>
-      <button type="button" class="bookmark-board-delete" data-action="delete-bookmark-board-item" data-bookmark-id="${safeId}" data-bookmark-board-id="${safeBoardId}" title="${escapeHtml(t('bookmarkBoardDelete'))}" aria-label="${escapeHtml(t('bookmarkBoardDelete'))}">
+      <button type="button" class="bookmark-board-delete${isSelectionMode ? ' is-hidden' : ''}" data-action="delete-bookmark-board-item" data-bookmark-id="${safeId}" data-bookmark-board-id="${safeBoardId}" title="${escapeHtml(t('bookmarkBoardDelete'))}" aria-label="${escapeHtml(t('bookmarkBoardDelete'))}"${isSelectionMode ? ' tabindex="-1"' : ''}>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.1" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
@@ -1898,6 +2386,51 @@ function renderBookmarkBoardFolderCard(item, boardId = '') {
     </div>`;
 }
 
+function renderBookmarkCollectionCard(collection) {
+  const safeId = escapeHtml(collection.id);
+  const safeName = escapeHtml(collection.name);
+  const boardTitle = collection.boardTitle ? escapeHtml(collection.boardTitle) : '';
+  const countText = escapeHtml(t('bookmarkCollectionCount', collection.items.length));
+  const titleAttr = boardTitle ? `${safeName} · ${boardTitle}` : safeName;
+
+  return `
+    <article class="bookmark-collection-card" title="${titleAttr}">
+      <button type="button" class="bookmark-collection-card-main" data-action="open-bookmark-collection-detail" data-bookmark-collection-id="${safeId}" aria-label="${escapeHtml(t('bookmarkCollectionViewDetail'))}">
+        <div class="bookmark-collection-card-copy">
+          <div class="bookmark-collection-card-title">${safeName}</div>
+          <div class="bookmark-collection-card-meta">${countText}</div>
+        </div>
+      </button>
+      <div class="bookmark-collection-card-actions">
+        <button type="button" class="bookmark-collection-card-btn is-primary" data-action="open-bookmark-collection" data-bookmark-collection-id="${safeId}">
+          ${escapeHtml(t('bookmarkCollectionOpen'))}
+        </button>
+        <button type="button" class="bookmark-collection-card-btn is-danger" data-action="delete-bookmark-collection" data-bookmark-collection-id="${safeId}" title="${escapeHtml(t('bookmarkCollectionDelete'))}" aria-label="${escapeHtml(t('bookmarkCollectionDelete'))}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673A2.25 2.25 0 0 1 15.916 21.75H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.088-2.201a51.964 51.964 0 0 0-3.324 0C9.16 2.313 8.25 3.296 8.25 4.477v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+          </svg>
+        </button>
+      </div>
+    </article>`;
+}
+
+function renderBookmarkCollectionSection() {
+  if (bookmarkCollections.length === 0) return '';
+
+  return `
+    <section class="bookmark-collection-shell">
+      <div class="bookmark-collection-header">
+        <div class="bookmark-collection-heading">
+          <h3>${escapeHtml(t('bookmarkCollectionTitle'))}</h3>
+          <p>${escapeHtml(t('bookmarkCollectionSubtitle'))}</p>
+        </div>
+      </div>
+      <div class="bookmark-collection-grid">
+        ${bookmarkCollections.map(renderBookmarkCollectionCard).join('')}
+      </div>
+    </section>`;
+}
+
 function renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredItems }) {
   const boardId = escapeHtml(board.id);
   const currentTitle = currentFolder?.title || board.currentFolderTitle || board.folderTitle;
@@ -1908,21 +2441,38 @@ function renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredIt
     : t('bookmarkBoardMetaSelected', currentTitle, bookmarkCount);
   const canGoBack = !!board.currentFolderId && board.currentFolderId !== board.folderId;
   const query = getBookmarkBoardSearchQuery(board.id);
+  const selectionState = getBookmarkBoardSelectionState(board.id);
+  const isSelectionMode = selectionState.isSelectionMode;
+  const selectedIds = selectionState.selectedIds;
+  const bookmarkItems = getBookmarkItemsForBatchActions(filteredItems);
+  const selectedCount = bookmarkItems.filter(item => selectedIds.includes(item.id)).length;
+  const canOpenSelected = selectedCount > 0;
+  const canOpenAll = bookmarkItems.length > 0;
+  const allSelected = canOpenAll && selectedCount === bookmarkItems.length;
   const hasSingleItem = filteredItems.length === 1;
   const bodyHtml = filteredItems.length === 0
     ? `<div class="bookmark-board-group-empty">${escapeHtml(items.length === 0 ? t('bookmarkBoardEmptyFolder') : t('bookmarkBoardEmptyNoResults'))}</div>`
     : `<div class="bookmark-board-list bookmark-board-group-list${hasSingleItem ? ' is-single-item' : ''}">
-        ${filteredItems.map(item => item.type === 'folder' ? renderBookmarkBoardFolderCard(item, board.id) : renderBookmarkBoardCard(item, board.id)).join('')}
+        ${filteredItems.map(item => item.type === 'folder'
+          ? renderBookmarkBoardFolderCard(item, board.id)
+          : renderBookmarkBoardCard(item, board.id, {
+              isSelectionMode,
+              isSelected: selectedIds.includes(item.id),
+            })
+        ).join('')}
       </div>`;
 
   return `
-    <div class="bookmark-board-group" data-bookmark-board-id="${boardId}">
+    <div class="bookmark-board-group${isSelectionMode ? ' is-selection-mode' : ''}" data-bookmark-board-id="${boardId}">
       <div class="bookmark-board-group-header">
         <div class="bookmark-board-group-copy">
           <div class="bookmark-board-group-title">${escapeHtml(currentTitle || board.folderTitle)}</div>
           <div class="bookmark-board-group-meta">${escapeHtml(metaText)}</div>
         </div>
         <div class="bookmark-board-group-tools">
+          <button type="button" class="bookmark-board-batch-toggle${isSelectionMode ? ' is-active' : ''}" data-action="${isSelectionMode ? 'cancel-bookmark-board-selection-mode' : 'enter-bookmark-board-selection-mode'}" data-bookmark-board-id="${boardId}">
+            ${escapeHtml(isSelectionMode ? t('bookmarkBoardBatchCancel') : t('bookmarkBoardBatchSelect'))}
+          </button>
           ${canGoBack ? `<button type="button" class="bookmark-board-back" data-action="bookmark-board-go-up" data-bookmark-board-id="${boardId}">${escapeHtml(t('bookmarkBoardBack'))}</button>` : ''}
           <label class="bookmark-board-search-shell bookmark-board-group-search">
             <input type="search" class="bookmark-board-search" data-action="search-bookmark-board" data-bookmark-board-id="${boardId}" placeholder="${escapeHtml(t('bookmarkBoardSearchPlaceholder'))}" value="${escapeHtml(query)}">
@@ -1930,6 +2480,28 @@ function renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredIt
           <button type="button" class="bookmark-board-remove" data-action="remove-bookmark-board" data-bookmark-board-id="${boardId}" title="${escapeHtml(t('bookmarkBoardRemove'))}" aria-label="${escapeHtml(t('bookmarkBoardRemove'))}">×</button>
         </div>
       </div>
+      ${isSelectionMode ? `
+        <div class="bookmark-board-batch-bar">
+          <div class="bookmark-board-batch-summary">
+            <div class="bookmark-board-batch-meta">${escapeHtml(t('bookmarkBoardBatchSelectedCount', selectedCount))}</div>
+            <div class="bookmark-board-batch-hint">${escapeHtml(t('bookmarkBoardBatchHint'))}</div>
+          </div>
+          <div class="bookmark-board-batch-actions">
+            <button type="button" class="bookmark-board-batch-btn" data-action="${allSelected ? 'clear-all-bookmark-board-selection' : 'select-all-bookmark-board-items'}" data-bookmark-board-id="${boardId}"${canOpenAll ? '' : ' disabled'}>
+              ${escapeHtml(allSelected ? t('bookmarkBoardBatchClear') : t('bookmarkBoardBatchSelectAll'))}
+            </button>
+            <button type="button" class="bookmark-board-batch-btn" data-action="save-bookmark-collection" data-bookmark-board-id="${boardId}"${canOpenSelected ? '' : ' disabled'}>
+              ${escapeHtml(t('bookmarkBoardBatchSaveCollection'))}
+            </button>
+            <button type="button" class="bookmark-board-batch-btn" data-action="open-all-bookmark-board-items" data-bookmark-board-id="${boardId}"${canOpenAll ? '' : ' disabled'}>
+              ${escapeHtml(t('bookmarkBoardBatchOpenAll'))}
+            </button>
+            <button type="button" class="bookmark-board-batch-btn is-primary" data-action="open-selected-bookmark-board-items" data-bookmark-board-id="${boardId}"${canOpenSelected ? '' : ' disabled'}>
+              ${escapeHtml(t('bookmarkBoardBatchOpenSelected'))}
+            </button>
+          </div>
+        </div>
+      ` : ''}
       <div class="bookmark-board-group-body">
         ${bodyHtml}
       </div>
@@ -1940,13 +2512,14 @@ async function renderBookmarkBoardSection() {
   const sectionEl = document.getElementById('bookmarkBoardSection');
   const listEl = document.getElementById('bookmarkBoardList');
   const emptyEl = document.getElementById('bookmarkBoardEmpty');
+  const collectionEl = document.getElementById('bookmarkCollectionList');
   const metaEl = document.getElementById('bookmarkBoardMeta');
   const searchShell = document.getElementById('bookmarkBoardSearchShell');
   const searchInput = document.getElementById('bookmarkBoardSearchInput');
   const addBtn = document.getElementById('bookmarkBoardAddBtn');
   const backBtn = document.getElementById('bookmarkBoardBackBtn');
   const toggleBtn = document.getElementById('bookmarkBoardToggleBtn');
-  if (!sectionEl || !listEl || !emptyEl || !metaEl || !searchShell || !searchInput) return;
+  if (!sectionEl || !listEl || !emptyEl || !metaEl || !searchShell || !searchInput || !collectionEl) return;
 
   searchInput.placeholder = t('bookmarkBoardSearchPlaceholder');
   searchInput.value = bookmarkBoardSearchQuery;
@@ -1974,6 +2547,8 @@ async function renderBookmarkBoardSection() {
     sectionEl.style.display = 'block';
     listEl.classList.remove('has-multiple-boards');
     listEl.innerHTML = '';
+    collectionEl.style.display = 'none';
+    collectionEl.innerHTML = '';
     emptyEl.style.display = 'none';
     searchShell.style.display = 'none';
     if (backBtn) backBtn.style.display = 'none';
@@ -1988,6 +2563,8 @@ async function renderBookmarkBoardSection() {
   if (boards.length === 0) {
     sectionEl.style.display = 'block';
     listEl.classList.remove('has-multiple-boards');
+    collectionEl.style.display = bookmarkCollections.length > 0 ? 'block' : 'none';
+    collectionEl.innerHTML = renderBookmarkCollectionSection();
     metaEl.textContent = '';
     searchShell.style.display = 'none';
     if (backBtn) backBtn.style.display = 'none';
@@ -2019,6 +2596,8 @@ async function renderBookmarkBoardSection() {
     }
   }
   listEl.classList.toggle('has-multiple-boards', boards.length > 1);
+  collectionEl.style.display = bookmarkCollections.length > 0 ? 'block' : 'none';
+  collectionEl.innerHTML = renderBookmarkCollectionSection();
   searchShell.style.display = 'none';
   if (backBtn) backBtn.style.display = 'none';
   metaEl.textContent = totalBoards > 1
@@ -2031,11 +2610,18 @@ async function renderBookmarkBoardSection() {
     const { items, currentFolder } = await loadBookmarkBoardItems(board);
     bookmarkBoardStateById[board.id] = { items, currentFolder };
     const query = getBookmarkBoardSearchQuery(board.id).trim().toLowerCase();
-    const filteredItems = items.filter(item => {
-      if (!query) return true;
-      const haystack = `${item.title} ${item.url} ${item.path} ${item.type}`.toLowerCase();
-      return haystack.includes(query);
-    });
+    let filteredItems = items;
+
+    if (query) {
+      const searchFolderId = currentFolder?.id || board.currentFolderId || board.folderId;
+      const searchBaseTitle = currentFolder?.title || board.currentFolderTitle || board.folderTitle || '';
+      const allBookmarks = await searchBookmarksInFolderTree(searchFolderId, searchBaseTitle);
+      filteredItems = allBookmarks.filter(item => {
+        const haystack = `${item.title} ${item.url}`.toLowerCase();
+        return haystack.includes(query);
+      });
+    }
+
     groupHtml.push(renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredItems }));
   }
 
@@ -2060,6 +2646,60 @@ function closeQuickLinkModal() {
   if (form) form.reset();
   if (idInput) idInput.value = '';
   syncQuickLinkModalText();
+}
+
+function closeBookmarkCollectionModal() {
+  const backdrop = document.getElementById('bookmarkCollectionModalBackdrop');
+  const form = document.getElementById('bookmarkCollectionForm');
+  const boardIdInput = document.getElementById('bookmarkCollectionBoardId');
+  const existingSelect = document.getElementById('bookmarkCollectionExistingSelect');
+  if (backdrop) backdrop.style.display = 'none';
+  if (form) form.reset();
+  if (boardIdInput) boardIdInput.value = '';
+  if (existingSelect instanceof HTMLInputElement) existingSelect.value = '';
+  bookmarkCollectionModalMode = 'create';
+  closeBookmarkCollectionSelectMenu();
+  syncBookmarkCollectionModalText();
+}
+
+function openBookmarkCollectionModal(boardId = '') {
+  const backdrop = document.getElementById('bookmarkCollectionModalBackdrop');
+  const boardIdInput = document.getElementById('bookmarkCollectionBoardId');
+  const nameInput = document.getElementById('bookmarkCollectionNameInput');
+  if (!backdrop || !boardIdInput || !nameInput) return;
+
+  boardIdInput.value = boardId;
+  bookmarkCollectionModalMode = bookmarkCollections.length > 0 ? 'append' : 'create';
+  backdrop.style.display = 'flex';
+  syncBookmarkCollectionModalText();
+  setTimeout(() => {
+    if (bookmarkCollectionModalMode === 'append') {
+      const trigger = document.getElementById('bookmarkCollectionSelectTrigger');
+      if (trigger instanceof HTMLButtonElement) trigger.focus();
+      return;
+    }
+    nameInput.focus();
+  }, 0);
+}
+
+function closeBookmarkCollectionDetailModal() {
+  activeBookmarkCollectionId = '';
+  const backdrop = document.getElementById('bookmarkCollectionDetailBackdrop');
+  if (backdrop) backdrop.style.display = 'none';
+}
+
+function openBookmarkCollectionDetailModal(collectionId = '') {
+  const collection = getBookmarkCollectionById(collectionId);
+  const backdrop = document.getElementById('bookmarkCollectionDetailBackdrop');
+  if (!collection || !backdrop) return;
+
+  activeBookmarkCollectionId = collection.id;
+  backdrop.style.display = 'flex';
+  syncBookmarkCollectionDetailModal();
+  setTimeout(() => {
+    const openBtn = document.getElementById('bookmarkCollectionDetailOpenBtn');
+    if (openBtn instanceof HTMLButtonElement && !openBtn.disabled) openBtn.focus();
+  }, 0);
 }
 
 function closeConfirmModal() {
@@ -2669,6 +3309,7 @@ function registerChromeStateListeners() {
       !changes[TAB_SESSIONS_STORAGE_KEY] &&
       !changes[SESSIONS_VIEWED_COUNT_KEY] &&
       !changes[QUICK_LINKS_STORAGE_KEY] &&
+      !changes[BOOKMARK_COLLECTIONS_STORAGE_KEY] &&
       !changes[BOOKMARK_BOARD_CONFIG_STORAGE_KEY] &&
       !changes[BOOKMARK_OPEN_MODE_STORAGE_KEY] &&
       !changes.deferred
@@ -3663,6 +4304,7 @@ function renderArchiveItem(item) {
 async function renderStaticDashboard() {
   applyStaticText();
   await renderQuickLinksSection();
+  await loadBookmarkCollections();
   await renderBookmarkBoardSection();
   await renderBookmarkFolderPicker();
 
@@ -4140,6 +4782,60 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'close-bookmark-collection-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeBookmarkCollectionModal();
+    return;
+  }
+
+  if (action === 'close-bookmark-collection-detail') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeBookmarkCollectionDetailModal();
+    return;
+  }
+
+  if (action === 'set-bookmark-collection-mode') {
+    e.preventDefault();
+    e.stopPropagation();
+    const mode = actionEl.dataset.bookmarkCollectionMode === 'append' ? 'append' : 'create';
+    if (mode === 'append' && bookmarkCollections.length === 0) return;
+    bookmarkCollectionModalMode = mode;
+    closeBookmarkCollectionSelectMenu();
+    syncBookmarkCollectionModalText();
+    return;
+  }
+
+  if (action === 'toggle-bookmark-collection-select') {
+    e.preventDefault();
+    e.stopPropagation();
+    const menu = document.getElementById('bookmarkCollectionSelectMenu');
+    const trigger = document.getElementById('bookmarkCollectionSelectTrigger');
+    if (!menu || !trigger) return;
+    const isOpen = menu.style.display === 'block';
+    if (isOpen) {
+      closeBookmarkCollectionSelectMenu();
+    } else {
+      syncBookmarkCollectionSelectControl();
+      menu.style.display = 'block';
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+    return;
+  }
+
+  if (action === 'select-bookmark-collection-option') {
+    e.preventDefault();
+    e.stopPropagation();
+    const hiddenInput = document.getElementById('bookmarkCollectionExistingSelect');
+    if (hiddenInput instanceof HTMLInputElement) {
+      hiddenInput.value = actionEl.dataset.bookmarkCollectionId || '';
+    }
+    syncBookmarkCollectionSelectControl();
+    closeBookmarkCollectionSelectMenu();
+    return;
+  }
+
   if (action === 'open-quick-link') {
     const hadOpenQuickLinkMenu = !!activeQuickLinkMenuId;
     activeQuickLinkMenuId = '';
@@ -4164,20 +4860,218 @@ document.addEventListener('click', async (e) => {
     if (!url) return;
 
     try {
-      if (bookmarkOpenMode === 'current-tab') {
-        const currentTab = await chrome.tabs.getCurrent();
-        if (currentTab?.id) {
-          await chrome.tabs.update(currentTab.id, { url, active: true });
-        } else {
-          await chrome.tabs.create({ url });
-        }
-      } else {
-        await chrome.tabs.create({ url });
+      const result = await openBookmarkUrls([url]);
+      if (result.reusedCount > 0 && result.reusedTabs[0]?.id) {
+        await focusTabById(result.reusedTabs[0].id);
       }
     } catch (err) {
       console.warn('[tab-out] Could not open bookmark board item:', err);
       showToast(t('toastBookmarkOpenFailed'));
     }
+    return;
+  }
+
+  if (action === 'enter-bookmark-board-selection-mode') {
+    e.preventDefault();
+    e.stopPropagation();
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    if (!boardId) return;
+    setBookmarkBoardSelectionState(boardId, {
+      isSelectionMode: true,
+      selectedIds: [],
+    });
+    await renderBookmarkBoardSection();
+    return;
+  }
+
+  if (action === 'cancel-bookmark-board-selection-mode') {
+    e.preventDefault();
+    e.stopPropagation();
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    if (!boardId) return;
+    clearBookmarkBoardSelectionState(boardId);
+    await renderBookmarkBoardSection();
+    return;
+  }
+
+  if (action === 'toggle-bookmark-board-selection') {
+    e.preventDefault();
+    e.stopPropagation();
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const bookmarkId = actionEl.dataset.bookmarkId;
+    if (!boardId || !bookmarkId) return;
+
+    const current = getBookmarkBoardSelectionState(boardId);
+    const nextSelectedIds = current.selectedIds.includes(bookmarkId)
+      ? current.selectedIds.filter(id => id !== bookmarkId)
+      : [...current.selectedIds, bookmarkId];
+
+    setBookmarkBoardSelectionState(boardId, {
+      isSelectionMode: true,
+      selectedIds: nextSelectedIds,
+    });
+    await renderBookmarkBoardSection();
+    return;
+  }
+
+  if (action === 'select-all-bookmark-board-items' || action === 'clear-all-bookmark-board-selection') {
+    e.preventDefault();
+    e.stopPropagation();
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const boardState = boardId ? bookmarkBoardStateById[boardId] : null;
+    const items = boardState?.items || [];
+    const bookmarkIds = getBookmarkItemsForBatchActions(items).map(item => item.id);
+    if (!boardId) return;
+
+    setBookmarkBoardSelectionState(boardId, {
+      isSelectionMode: true,
+      selectedIds: action === 'select-all-bookmark-board-items' ? bookmarkIds : [],
+    });
+    await renderBookmarkBoardSection();
+    return;
+  }
+
+  if (action === 'save-bookmark-collection') {
+    e.preventDefault();
+    e.stopPropagation();
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const boardState = boardId ? bookmarkBoardStateById[boardId] : null;
+    const items = getBookmarkItemsForBatchActions(boardState?.items || []);
+    const selectionState = getBookmarkBoardSelectionState(boardId);
+    const selectedItems = items.filter(item => selectionState.selectedIds.includes(item.id));
+    if (!boardId || selectedItems.length === 0) {
+      showToast(t('toastBookmarkCollectionEmpty'));
+      return;
+    }
+    openBookmarkCollectionModal(boardId);
+    return;
+  }
+
+  if (action === 'open-selected-bookmark-board-items' || action === 'open-all-bookmark-board-items') {
+    e.preventDefault();
+    e.stopPropagation();
+    const boardId = actionEl.dataset.bookmarkBoardId;
+    const boardState = boardId ? bookmarkBoardStateById[boardId] : null;
+    const items = boardState?.items || [];
+    const bookmarkItems = getBookmarkItemsForBatchActions(items);
+    if (!boardId || bookmarkItems.length === 0) {
+      showToast(t('toastBookmarkBatchEmpty'));
+      return;
+    }
+
+    const selectionState = getBookmarkBoardSelectionState(boardId);
+    const urls = action === 'open-all-bookmark-board-items'
+      ? bookmarkItems.map(item => item.url)
+      : bookmarkItems.filter(item => selectionState.selectedIds.includes(item.id)).map(item => item.url);
+
+    if (urls.length === 0) {
+      showToast(t('toastBookmarkBatchEmpty'));
+      return;
+    }
+
+    try {
+      const { openedCount, reusedCount } = await openBookmarkUrls(urls);
+      clearBookmarkBoardSelectionState(boardId);
+      await renderBookmarkBoardSection();
+      showToast(
+        reusedCount > 0
+          ? t('toastBookmarkBatchOpenedWithReuse', openedCount, reusedCount)
+          : t('toastBookmarkBatchOpened', openedCount)
+      );
+    } catch (err) {
+      console.warn('[tab-out] Could not batch open bookmark board items:', err);
+      showToast(t('toastBookmarkOpenFailed'));
+    }
+    return;
+  }
+
+  if (action === 'open-bookmark-collection') {
+    e.preventDefault();
+    e.stopPropagation();
+    const collectionId = actionEl.dataset.bookmarkCollectionId;
+    const collection = getBookmarkCollectionById(collectionId);
+    if (!collection) return;
+
+    try {
+      const { openedCount, reusedCount } = await openBookmarkUrls(collection.items.map(item => item.url));
+      showToast(
+        reusedCount > 0
+          ? t('toastBookmarkBatchOpenedWithReuse', openedCount, reusedCount)
+          : t('toastBookmarkBatchOpened', openedCount)
+      );
+    } catch (err) {
+      console.warn('[tab-out] Could not open bookmark collection:', err);
+      showToast(t('toastBookmarkOpenFailed'));
+    }
+    return;
+  }
+
+  if (action === 'open-bookmark-collection-detail') {
+    e.preventDefault();
+    e.stopPropagation();
+    const collectionId = actionEl.dataset.bookmarkCollectionId;
+    if (!collectionId) return;
+    openBookmarkCollectionDetailModal(collectionId);
+    return;
+  }
+
+  if (action === 'open-bookmark-collection-from-detail') {
+    e.preventDefault();
+    e.stopPropagation();
+    const collectionId = actionEl.dataset.bookmarkCollectionId || activeBookmarkCollectionId;
+    const collection = getBookmarkCollectionById(collectionId);
+    if (!collection) return;
+
+    try {
+      const { openedCount, reusedCount } = await openBookmarkUrls(collection.items.map(item => item.url));
+      showToast(
+        reusedCount > 0
+          ? t('toastBookmarkBatchOpenedWithReuse', openedCount, reusedCount)
+          : t('toastBookmarkBatchOpened', openedCount)
+      );
+    } catch (err) {
+      console.warn('[tab-out] Could not open bookmark collection from detail modal:', err);
+      showToast(t('toastBookmarkOpenFailed'));
+    }
+    return;
+  }
+
+  if (action === 'open-bookmark-collection-item') {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = actionEl.dataset.bookmarkUrl;
+    if (!url) return;
+
+    try {
+      const { openedCount, reusedCount } = await openBookmarkUrls([url]);
+      showToast(
+        reusedCount > 0
+          ? t('toastBookmarkBatchOpenedWithReuse', openedCount, reusedCount)
+          : t('toastBookmarkBatchOpened', openedCount)
+      );
+    } catch (err) {
+      console.warn('[tab-out] Could not open bookmark collection item:', err);
+      showToast(t('toastBookmarkOpenFailed'));
+    }
+    return;
+  }
+
+  if (action === 'delete-bookmark-collection') {
+    e.preventDefault();
+    e.stopPropagation();
+    const collectionId = actionEl.dataset.bookmarkCollectionId;
+    const collection = getBookmarkCollectionById(collectionId);
+    if (!collection) return;
+    openConfirmModal({
+      title: t('bookmarkCollectionDelete'),
+      body: t('bookmarkCollectionDeleteConfirm', collection.name),
+      onConfirm: async () => {
+        if (activeBookmarkCollectionId === collectionId) closeBookmarkCollectionDetailModal();
+        await saveBookmarkCollections(bookmarkCollections.filter(item => item.id !== collectionId));
+        await renderBookmarkBoardSection();
+        showToast(t('toastBookmarkCollectionDeleted'));
+      },
+    });
     return;
   }
 
@@ -4199,6 +5093,15 @@ document.addEventListener('click', async (e) => {
           await chrome.bookmarks.remove(bookmarkId);
           bookmarkBoardItems = [];
           if (boardId) delete bookmarkBoardStateById[boardId];
+          if (boardId) {
+            const current = getBookmarkBoardSelectionState(boardId);
+            if (current.selectedIds.includes(bookmarkId)) {
+              setBookmarkBoardSelectionState(boardId, {
+                isSelectionMode: current.isSelectionMode,
+                selectedIds: current.selectedIds.filter(id => id !== bookmarkId),
+              });
+            }
+          }
           await renderBookmarkBoardSection();
           showToast(t('toastBookmarkDeleted'));
         } catch (err) {
@@ -4225,6 +5128,7 @@ document.addEventListener('click', async (e) => {
       });
       setBookmarkBoardSearchQuery(board.id, '');
       delete bookmarkBoardStateById[board.id];
+      clearBookmarkBoardSelectionState(board.id);
     } else {
       await saveBookmarkBoardConfigPreference({
         ...bookmarkBoardConfig,
@@ -4262,6 +5166,7 @@ document.addEventListener('click', async (e) => {
       });
       setBookmarkBoardSearchQuery(board.id, '');
       delete bookmarkBoardStateById[board.id];
+      clearBookmarkBoardSelectionState(board.id);
       await renderBookmarkBoardSection();
       return;
     }
@@ -4684,8 +5589,102 @@ document.getElementById('quickLinkForm')?.addEventListener('submit', async (e) =
   closeQuickLinkModal();
 });
 
+document.getElementById('bookmarkCollectionForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const boardIdInput = document.getElementById('bookmarkCollectionBoardId');
+  const nameInput = document.getElementById('bookmarkCollectionNameInput');
+  const existingSelect = document.getElementById('bookmarkCollectionExistingSelect');
+  if (!(boardIdInput instanceof HTMLInputElement) || !(nameInput instanceof HTMLInputElement)) return;
+
+  const boardId = boardIdInput.value.trim();
+  const board = getBookmarkBoardEntry(boardId);
+  const boardState = boardId ? bookmarkBoardStateById[boardId] : null;
+  const items = getBookmarkItemsForBatchActions(boardState?.items || []);
+  const selectionState = getBookmarkBoardSelectionState(boardId);
+  const selectedItems = items.filter(item => selectionState.selectedIds.includes(item.id));
+
+  if (selectedItems.length === 0) {
+    showToast(t('toastBookmarkCollectionEmpty'));
+    closeBookmarkCollectionModal();
+    return;
+  }
+
+  const incomingItems = selectedItems.map((item, index) => ({
+    id: item.id,
+    title: item.title,
+    url: item.url,
+    order: index,
+  }));
+
+  if (bookmarkCollectionModalMode === 'append') {
+    if (!(existingSelect instanceof HTMLInputElement) || !existingSelect.value) {
+      showToast(t('toastBookmarkCollectionSelectExisting'));
+      const trigger = document.getElementById('bookmarkCollectionSelectTrigger');
+      if (trigger instanceof HTMLButtonElement) trigger.focus();
+      return;
+    }
+
+    const targetCollectionId = existingSelect.value;
+    const targetCollection = getBookmarkCollectionById(targetCollectionId);
+    if (!targetCollection) {
+      showToast(t('toastBookmarkCollectionSelectExisting'));
+      const trigger = document.getElementById('bookmarkCollectionSelectTrigger');
+      if (trigger instanceof HTMLButtonElement) trigger.focus();
+      return;
+    }
+
+    const nextCollections = bookmarkCollections.map(collection => {
+      if (collection.id !== targetCollectionId) return collection;
+      return normalizeBookmarkCollection({
+        ...collection,
+        boardId: boardId || collection.boardId,
+        boardTitle: collection.boardTitle || board?.folderTitle || board?.currentFolderTitle || '',
+        items: mergeBookmarkCollectionItems(collection.items, incomingItems),
+      });
+    });
+
+    await saveBookmarkCollections(nextCollections);
+    clearBookmarkBoardSelectionState(boardId);
+    closeBookmarkCollectionModal();
+    await renderBookmarkBoardSection();
+    showToast(t('toastBookmarkCollectionUpdated'));
+    return;
+  }
+
+  const name = nameInput.value.trim();
+  if (!name) {
+    showToast(t('toastBookmarkCollectionInvalidName'));
+    nameInput.focus();
+    return;
+  }
+
+  const nextCollection = normalizeBookmarkCollection({
+    id: `bookmark-collection-${Date.now()}`,
+    name,
+    boardId,
+    boardTitle: board?.folderTitle || board?.currentFolderTitle || '',
+    createdAt: new Date().toISOString(),
+    items: mergeBookmarkCollectionItems([], incomingItems),
+  }, bookmarkCollections.length);
+
+  await saveBookmarkCollections([nextCollection, ...bookmarkCollections]);
+  clearBookmarkBoardSelectionState(boardId);
+  closeBookmarkCollectionModal();
+  await renderBookmarkBoardSection();
+  showToast(t('toastBookmarkCollectionSaved'));
+});
+
 document.getElementById('quickLinkModalBackdrop')?.addEventListener('click', (e) => {
   if (e.target.id === 'quickLinkModalBackdrop') closeQuickLinkModal();
+});
+
+document.getElementById('bookmarkCollectionModalBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'bookmarkCollectionModalBackdrop') closeBookmarkCollectionModal();
+});
+
+document.getElementById('bookmarkCollectionDetailBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'bookmarkCollectionDetailBackdrop') closeBookmarkCollectionDetailModal();
 });
 
 document.getElementById('settingsModalBackdrop')?.addEventListener('click', (e) => {
@@ -4743,6 +5742,13 @@ document.addEventListener('click', (e) => {
   });
 });
 
+document.addEventListener('click', (e) => {
+  const selectShell = document.getElementById('bookmarkCollectionSelectShell');
+  if (!selectShell) return;
+  if (selectShell.contains(e.target)) return;
+  closeBookmarkCollectionSelectMenu();
+});
+
 document.getElementById('backgroundImageInput')?.addEventListener('change', async (e) => {
   const input = e.target;
   if (!(input instanceof HTMLInputElement)) return;
@@ -4779,6 +5785,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   const backdrop = document.getElementById('quickLinkModalBackdrop');
   if (backdrop?.style.display === 'flex') closeQuickLinkModal();
+  const bookmarkCollectionBackdrop = document.getElementById('bookmarkCollectionModalBackdrop');
+  if (bookmarkCollectionBackdrop?.style.display === 'flex') closeBookmarkCollectionModal();
+  const bookmarkCollectionDetailBackdrop = document.getElementById('bookmarkCollectionDetailBackdrop');
+  if (bookmarkCollectionDetailBackdrop?.style.display === 'flex') closeBookmarkCollectionDetailModal();
   const confirmBackdrop = document.getElementById('confirmModalBackdrop');
   if (confirmBackdrop?.style.display === 'flex') closeConfirmModal();
   if (isSettingsModalOpen) setSettingsModalOpen(false);
@@ -4943,6 +5953,7 @@ async function initializeApp() {
   await loadThemePreference();
   await loadBackgroundPreference();
   await loadQuickLinksOpenModePreference();
+  await loadBookmarkCollections();
   await loadBookmarkBoardConfigPreference();
   await loadBookmarkBoardDisplayLimitPreference();
   await loadBookmarkBoardCollapsedPreference();

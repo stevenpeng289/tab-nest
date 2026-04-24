@@ -57,6 +57,7 @@
         </div>
       </div>
       <div class="bookmark-board-empty" id="bookmarkBoardEmpty" style="display:none"></div>
+      <div class="bookmark-collection-list" id="bookmarkCollectionList" style="display:none"></div>
       <div class="bookmark-board-list" id="bookmarkBoardList"></div>
     </div>
   </section>
@@ -316,8 +317,18 @@
         </section>
         <section class="settings-panel" data-settings-panel="bookmarks" style="display:none">
           <div class="settings-group">
-            <div class="settings-group-label" id="settingsBookmarkBoardLimitLabel"></div>
-            <p class="settings-group-copy" id="settingsBookmarkBoardLimitHint"></p>
+            <div class="settings-group-label" id="settingsBookmarkFolderLabel"></div>
+            <p class="settings-group-copy" id="settingsBookmarkFolderHint"></p>
+            <div class="settings-action-row">
+              <input type="search" class="settings-folder-search" id="bookmarkFolderSearchInput">
+              <button type="button" class="action-btn" data-action="clear-bookmark-folder" id="bookmarkFolderClearBtn" hidden></button>
+            </div>
+            <div class="bookmark-folder-list" id="bookmarkFolderList"></div>
+            <div class="bookmark-folder-empty" id="bookmarkFolderEmpty" style="display:none"></div>
+          </div>
+          <div class="settings-group settings-group-subtle">
+            <div class="settings-group-label settings-group-label-subtle" id="settingsBookmarkBoardLimitLabel"></div>
+            <p class="settings-group-copy settings-group-copy-subtle" id="settingsBookmarkBoardLimitHint"></p>
             <div class="bookmark-board-limit-panel">
               <div class="bookmark-board-limit-switcher" id="settingsBookmarkBoardLimitChoices" role="group">
                 <button type="button" class="bookmark-board-limit-option" data-action="set-bookmark-board-display-limit" data-bookmark-board-limit="1" id="settingsBookmarkBoardLimit1Btn"></button>
@@ -327,16 +338,6 @@
               </div>
               <div class="bookmark-board-limit-note" id="settingsBookmarkBoardLimitNote"></div>
             </div>
-          </div>
-          <div class="settings-group">
-            <div class="settings-group-label" id="settingsBookmarkFolderLabel"></div>
-            <p class="settings-group-copy" id="settingsBookmarkFolderHint"></p>
-            <div class="settings-action-row">
-              <input type="search" class="settings-folder-search" id="bookmarkFolderSearchInput">
-              <button type="button" class="action-btn" data-action="clear-bookmark-folder" id="bookmarkFolderClearBtn" hidden></button>
-            </div>
-            <div class="bookmark-folder-list" id="bookmarkFolderList"></div>
-            <div class="bookmark-folder-empty" id="bookmarkFolderEmpty" style="display:none"></div>
           </div>
           <div class="settings-group">
             <div class="settings-group-label" id="settingsBookmarkOpenModeLabel"></div>
@@ -385,6 +386,58 @@
         <button type="submit" class="action-btn primary" id="quickLinkSubmitBtn"></button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="quick-link-modal-backdrop" id="bookmarkCollectionModalBackdrop" style="display:none">
+  <div class="quick-link-modal" role="dialog" aria-modal="true" aria-labelledby="bookmarkCollectionModalTitle">
+    <div class="quick-link-modal-header">
+      <h3 id="bookmarkCollectionModalTitle"></h3>
+      <button type="button" class="quick-link-modal-close" data-action="close-bookmark-collection-modal" id="bookmarkCollectionModalCloseBtn"></button>
+    </div>
+    <form class="quick-link-form" id="bookmarkCollectionForm">
+      <input type="hidden" id="bookmarkCollectionBoardId">
+      <div class="bookmark-collection-mode-switch" id="bookmarkCollectionModeSwitch" role="group"></div>
+      <label class="quick-link-field">
+        <span id="bookmarkCollectionNameLabel"></span>
+        <input type="text" id="bookmarkCollectionNameInput" maxlength="40" required>
+      </label>
+      <label class="quick-link-field" id="bookmarkCollectionExistingField" style="display:none">
+        <span id="bookmarkCollectionExistingLabel"></span>
+        <div class="bookmark-collection-select-shell" id="bookmarkCollectionSelectShell">
+          <input type="hidden" id="bookmarkCollectionExistingSelect">
+          <button type="button" class="bookmark-collection-select-trigger" data-action="toggle-bookmark-collection-select" id="bookmarkCollectionSelectTrigger" aria-expanded="false" aria-controls="bookmarkCollectionSelectMenu">
+            <span class="bookmark-collection-select-value" id="bookmarkCollectionSelectValue"></span>
+            <span class="bookmark-collection-select-chevron" aria-hidden="true"></span>
+          </button>
+          <div class="bookmark-collection-select-menu" id="bookmarkCollectionSelectMenu" style="display:none"></div>
+        </div>
+      </label>
+      <p class="bookmark-collection-modal-hint" id="bookmarkCollectionModalHint"></p>
+      <div class="quick-link-form-actions">
+        <button type="button" class="action-btn" data-action="close-bookmark-collection-modal" id="bookmarkCollectionCancelBtn"></button>
+        <button type="submit" class="action-btn primary" id="bookmarkCollectionSubmitBtn"></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="quick-link-modal-backdrop" id="bookmarkCollectionDetailBackdrop" style="display:none">
+  <div class="bookmark-collection-detail-modal" role="dialog" aria-modal="true" aria-labelledby="bookmarkCollectionDetailTitle">
+    <div class="bookmark-collection-detail-header">
+      <div class="bookmark-collection-detail-heading">
+        <p class="bookmark-collection-detail-eyebrow" id="bookmarkCollectionDetailEyebrow"></p>
+        <h3 id="bookmarkCollectionDetailTitle"></h3>
+        <p class="bookmark-collection-detail-meta" id="bookmarkCollectionDetailMeta"></p>
+      </div>
+      <button type="button" class="quick-link-modal-close" data-action="close-bookmark-collection-detail" id="bookmarkCollectionDetailCloseBtn"></button>
+    </div>
+    <div class="bookmark-collection-detail-list" id="bookmarkCollectionDetailList"></div>
+    <div class="bookmark-collection-detail-empty" id="bookmarkCollectionDetailEmpty" style="display:none"></div>
+    <div class="bookmark-collection-detail-actions">
+      <button type="button" class="action-btn" data-action="close-bookmark-collection-detail" id="bookmarkCollectionDetailCancelBtn"></button>
+      <button type="button" class="action-btn primary" data-action="open-bookmark-collection-from-detail" id="bookmarkCollectionDetailOpenBtn"></button>
+    </div>
   </div>
 </div>
 
