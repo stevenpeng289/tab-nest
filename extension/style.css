@@ -346,6 +346,35 @@ body.theme-dark .settings-choice.is-active {
   border-color: rgba(200, 113, 58, 0.3);
 }
 
+body.theme-dark .bookmark-board-limit-panel,
+body.theme-dark .bookmark-board-limit-switcher {
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.035), transparent 52%),
+    rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 18px 32px rgba(0, 0, 0, 0.16);
+}
+
+body.theme-dark .bookmark-board-limit-option {
+  color: rgba(225, 229, 236, 0.72);
+}
+
+body.theme-dark .bookmark-board-limit-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7f5f1;
+}
+
+body.theme-dark .bookmark-board-limit-option.is-active {
+  background: linear-gradient(135deg, rgba(236, 168, 118, 0.96), rgba(188, 98, 41, 0.94));
+  color: #1c140f;
+}
+
+body.theme-dark .bookmark-board-limit-note {
+  color: rgba(225, 229, 236, 0.72);
+}
+
 body.theme-dark .bookmark-board-card,
 body.theme-dark .bookmark-board-group,
 body.theme-dark .bookmark-board-toggle,
@@ -480,6 +509,12 @@ body.theme-dark .bookmark-board-list.has-multiple-boards .bookmark-board-group-b
 
 body.theme-dark .bookmark-board-list.has-multiple-boards .bookmark-board-group-body::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(236, 168, 118, 0.28), rgba(120, 79, 53, 0.22));
+}
+
+body.theme-dark .bookmark-board-group-list.is-single-item .bookmark-board-card {
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 body.theme-dark .quick-link-field input,
@@ -998,6 +1033,25 @@ body.theme-dark.has-custom-background .quick-link-modal {
   color: var(--ink);
 }
 
+.bookmark-board-add.is-disabled,
+.bookmark-board-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
+  border-color: rgba(226, 217, 207, 0.9);
+  background: rgba(255, 255, 255, 0.46);
+  color: rgba(160, 145, 132, 0.92);
+  box-shadow: none;
+}
+
+.bookmark-board-add.is-disabled:hover,
+.bookmark-board-add:disabled:hover {
+  transform: none;
+  border-color: rgba(226, 217, 207, 0.9);
+  background: rgba(255, 255, 255, 0.46);
+  color: rgba(160, 145, 132, 0.92);
+}
+
 .bookmark-board-search-shell {
   display: flex;
   align-items: center;
@@ -1124,6 +1178,48 @@ body.theme-dark.has-custom-background .quick-link-modal {
 .bookmark-board-group-list {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   align-content: start;
+}
+
+.bookmark-board-group-list.is-single-item {
+  grid-template-columns: minmax(0, min(620px, 100%));
+  justify-content: start;
+}
+
+.bookmark-board-group-list.is-single-item .bookmark-board-card {
+  min-height: 74px;
+  padding: 14px 14px 12px;
+  border-radius: 22px;
+  box-shadow:
+    0 16px 30px rgba(78, 57, 39, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.bookmark-board-group-list.is-single-item .bookmark-board-card-main {
+  gap: 12px;
+}
+
+.bookmark-board-group-list.is-single-item .bookmark-board-card-favicon {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+}
+
+.bookmark-board-group-list.is-single-item .bookmark-board-card-favicon img,
+.bookmark-board-group-list.is-single-item .bookmark-board-card-fallback {
+  width: 22px;
+  height: 22px;
+}
+
+.bookmark-board-group-list.is-single-item .bookmark-board-card-title {
+  font-size: 15px;
+  line-height: 1.34;
+  -webkit-line-clamp: 2;
+}
+
+.bookmark-board-group-list.is-single-item .bookmark-board-delete {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
 }
 
 .bookmark-board-group-empty {
@@ -4076,6 +4172,84 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--muted);
 }
 
+.bookmark-board-limit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(232, 226, 218, 0.92);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.62), transparent 54%),
+    linear-gradient(180deg, rgba(255, 253, 249, 0.82), rgba(248, 245, 240, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 12px 28px rgba(26, 22, 19, 0.035);
+}
+
+.bookmark-board-limit-switcher {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 226, 218, 0.92);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+
+.bookmark-board-limit-option {
+  min-width: 74px;
+  min-height: 52px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.bookmark-board-limit-option:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 250, 244, 0.86);
+  color: var(--ink);
+}
+
+.bookmark-board-limit-option.is-active {
+  background: linear-gradient(135deg, rgba(222, 136, 66, 1), rgba(188, 98, 41, 1));
+  color: #fffaf3;
+  box-shadow: 0 12px 24px rgba(200, 113, 58, 0.24);
+}
+
+.bookmark-board-limit-option-count {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.bookmark-board-limit-option-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.bookmark-board-limit-note {
+  min-height: 18px;
+  padding-left: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .bookmark-folder-list {
   display: grid;
   gap: 10px;
@@ -4772,6 +4946,17 @@ body.theme-dark .floating-tool-badge {
   }
   .settings-choice-list {
     flex-direction: column;
+  }
+  .bookmark-board-limit-panel {
+    padding: 12px;
+  }
+  .bookmark-board-limit-switcher {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .bookmark-board-limit-option {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
   }
   .settings-choice {
     width: 100%;

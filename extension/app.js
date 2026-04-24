@@ -44,6 +44,7 @@ let isSettingsModalOpen = false;
 let currentSettingsPanel = 'appearance';
 let quickLinksOpenMode = 'current-tab';
 let bookmarkOpenMode = 'new-tab';
+let bookmarkBoardDisplayLimit = 2;
 let bookmarkBoardConfig = {
   boards: [],
   folderId: '',
@@ -67,8 +68,11 @@ const QUICK_LINKS_OPEN_MODE_STORAGE_KEY = 'quickLinksOpenMode';
 const BOOKMARK_BOARD_CONFIG_STORAGE_KEY = 'bookmarkBoardConfig';
 const BOOKMARK_OPEN_MODE_STORAGE_KEY = 'bookmarkOpenMode';
 const BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY = 'bookmarkBoardCollapsed';
+const BOOKMARK_BOARD_DISPLAY_LIMIT_STORAGE_KEY = 'bookmarkBoardDisplayLimit';
 const OPEN_TABS_VIEW_STORAGE_KEY = 'openTabsView';
 const SESSIONS_VIEWED_COUNT_KEY = 'sessionsViewedCount'; // New storage key
+const BOOKMARK_BOARD_MAX_ENTRIES = 4;
+const DEFAULT_BOOKMARK_BOARD_DISPLAY_LIMIT = 2;
 const MAX_BACKGROUND_EDGE = 2200;
 const MAX_BACKGROUND_STORAGE_LENGTH = 3_500_000;
 const DEFAULT_BACKGROUND_COLOR = '#f8f5f0';
@@ -151,6 +155,15 @@ const MESSAGES = {
     settingsBookmarkFolderEmpty: '没有找到可用的书签目录。',
     settingsBookmarkFolderClear: '清空选择',
     settingsBookmarkFolderSelected: '当前已选',
+    settingsBookmarkBoardLimitLabel: '首页最多展示的书签工作台数量',
+    settingsBookmarkBoardLimitHint: '默认展示 2 个，可在 1 到 4 个之间调整；数量越多首页信息越密集。',
+    settingsBookmarkBoardLimitOption: count => String(count),
+    settingsBookmarkBoardLimitUnit: '个',
+    settingsBookmarkBoardLimitOptionDesc: count => count === 1 ? '更克制，适合只固定一个核心目录。'
+      : count === 2 ? '默认推荐，兼顾效率和清爽。'
+      : count === 3 ? '适合同时推进多个主题任务。'
+      : '信息最密集，适合重度使用场景。',
+    bookmarkBoardVisibleCountMeta: (visible, total) => `${visible} / ${total} 个工作台`,
     settingsBookmarkOpenModeLabel: '点击书签时',
     settingsBookmarkOpenModeHint: '选择替换当前新标签页，或在新标签页中打开。',
     settingsBookmarkFolderCount: count => `${count} 个目录`,
@@ -179,6 +192,8 @@ const MESSAGES = {
     toastQuickLinkInvalidUrl: '请输入有效的网址',
     toastBookmarkFolderSaved: '书签目录已更新',
     toastBookmarkFolderCleared: '已清空书签目录',
+    toastBookmarkBoardRemoved: '书签工作台已移除',
+    toastBookmarkBoardLimitReached: `最多只能添加 ${BOOKMARK_BOARD_MAX_ENTRIES} 个书签工作台`,
     toastBookmarkOpenFailed: '打开书签失败',
     toastBookmarkDeleted: '书签已删除',
     toastBookmarkDeleteFailed: '删除书签失败',
@@ -341,6 +356,15 @@ const MESSAGES = {
     settingsBookmarkFolderEmpty: 'No bookmark folders found.',
     settingsBookmarkFolderClear: 'Clear selection',
     settingsBookmarkFolderSelected: 'Selected',
+    settingsBookmarkBoardLimitLabel: 'Maximum bookmark boards on the homepage',
+    settingsBookmarkBoardLimitHint: 'Show 2 by default. You can adjust it from 1 to 4; more boards make the page denser.',
+    settingsBookmarkBoardLimitOption: count => String(count),
+    settingsBookmarkBoardLimitUnit: 'boards',
+    settingsBookmarkBoardLimitOptionDesc: count => count === 1 ? 'More focused, great for one primary folder.'
+      : count === 2 ? 'Recommended default for balance and clarity.'
+      : count === 3 ? 'Useful when several themes are active at once.'
+      : 'Densest layout, best for heavy usage.',
+    bookmarkBoardVisibleCountMeta: (visible, total) => `${visible} / ${total} boards`,
     settingsBookmarkOpenModeLabel: 'When clicking a bookmark',
     settingsBookmarkOpenModeHint: 'Open it here, or open it in a new tab.',
     settingsBookmarkFolderCount: count => `${count} folders`,
@@ -369,6 +393,8 @@ const MESSAGES = {
     toastQuickLinkInvalidUrl: 'Enter a valid URL',
     toastBookmarkFolderSaved: 'Bookmark folder updated',
     toastBookmarkFolderCleared: 'Bookmark folder cleared',
+    toastBookmarkBoardRemoved: 'Bookmark board removed',
+    toastBookmarkBoardLimitReached: `You can add up to ${BOOKMARK_BOARD_MAX_ENTRIES} bookmark boards`,
     toastBookmarkOpenFailed: 'Could not open bookmark',
     toastBookmarkDeleted: 'Bookmark deleted',
     toastBookmarkDeleteFailed: 'Could not delete bookmark',
@@ -841,6 +867,26 @@ async function setBookmarkOpenModePreference(mode) {
   await chrome.storage.local.set({ [BOOKMARK_OPEN_MODE_STORAGE_KEY]: bookmarkOpenMode });
 }
 
+function normalizeBookmarkBoardDisplayLimit(limit) {
+  const value = Number(limit);
+  if (!Number.isFinite(value)) return DEFAULT_BOOKMARK_BOARD_DISPLAY_LIMIT;
+  return Math.min(BOOKMARK_BOARD_MAX_ENTRIES, Math.max(1, Math.round(value)));
+}
+
+async function loadBookmarkBoardDisplayLimitPreference() {
+  try {
+    const { [BOOKMARK_BOARD_DISPLAY_LIMIT_STORAGE_KEY]: storedLimit = DEFAULT_BOOKMARK_BOARD_DISPLAY_LIMIT } = await chrome.storage.local.get(BOOKMARK_BOARD_DISPLAY_LIMIT_STORAGE_KEY);
+    bookmarkBoardDisplayLimit = normalizeBookmarkBoardDisplayLimit(storedLimit);
+  } catch {
+    bookmarkBoardDisplayLimit = DEFAULT_BOOKMARK_BOARD_DISPLAY_LIMIT;
+  }
+}
+
+async function setBookmarkBoardDisplayLimitPreference(limit) {
+  bookmarkBoardDisplayLimit = normalizeBookmarkBoardDisplayLimit(limit);
+  await chrome.storage.local.set({ [BOOKMARK_BOARD_DISPLAY_LIMIT_STORAGE_KEY]: bookmarkBoardDisplayLimit });
+}
+
 async function loadBookmarkBoardCollapsedPreference() {
   try {
     const stored = await chrome.storage.local.get(BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY);
@@ -946,6 +992,30 @@ function syncBookmarkOpenModeControls() {
   }
 }
 
+function syncBookmarkBoardLimitControls() {
+  const configs = [1, 2, 3, 4].map(count => ({
+    id: `settingsBookmarkBoardLimit${count}Btn`,
+    limit: count,
+    title: t('settingsBookmarkBoardLimitOption', count),
+    description: t('settingsBookmarkBoardLimitOptionDesc', count),
+  }));
+  const noteEl = document.getElementById('settingsBookmarkBoardLimitNote');
+
+  for (const config of configs) {
+    const button = document.getElementById(config.id);
+    if (!button) continue;
+    const isActive = bookmarkBoardDisplayLimit === config.limit;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    button.innerHTML = `
+      <span class="bookmark-board-limit-option-count">${escapeHtml(config.title)}</span>
+      <span class="bookmark-board-limit-option-label">${escapeHtml(t('settingsBookmarkBoardLimitUnit'))}</span>`;
+  }
+
+  const activeConfig = configs.find(config => config.limit === bookmarkBoardDisplayLimit);
+  if (noteEl) noteEl.textContent = activeConfig?.description || '';
+}
+
 function applyStaticText() {
   document.documentElement.lang = currentLanguage;
 
@@ -1000,6 +1070,8 @@ function applyStaticText() {
   const settingsBookmarkFolderLabel = document.getElementById('settingsBookmarkFolderLabel');
   const settingsBookmarkFolderHint = document.getElementById('settingsBookmarkFolderHint');
   const bookmarkFolderSearchInput = document.getElementById('bookmarkFolderSearchInput');
+  const settingsBookmarkBoardLimitLabel = document.getElementById('settingsBookmarkBoardLimitLabel');
+  const settingsBookmarkBoardLimitHint = document.getElementById('settingsBookmarkBoardLimitHint');
   const settingsBookmarkOpenModeLabel = document.getElementById('settingsBookmarkOpenModeLabel');
   const settingsBookmarkOpenModeHint = document.getElementById('settingsBookmarkOpenModeHint');
   const bookmarkBoardBackBtn = document.getElementById('bookmarkBoardBackBtn');
@@ -1094,6 +1166,8 @@ function applyStaticText() {
   if (settingsBookmarkFolderLabel) settingsBookmarkFolderLabel.textContent = t('settingsBookmarkFolderLabel');
   if (settingsBookmarkFolderHint) settingsBookmarkFolderHint.textContent = t('settingsBookmarkFolderHint');
   if (bookmarkFolderSearchInput) bookmarkFolderSearchInput.placeholder = t('settingsBookmarkFolderSearchPlaceholder');
+  if (settingsBookmarkBoardLimitLabel) settingsBookmarkBoardLimitLabel.textContent = t('settingsBookmarkBoardLimitLabel');
+  if (settingsBookmarkBoardLimitHint) settingsBookmarkBoardLimitHint.textContent = t('settingsBookmarkBoardLimitHint');
   if (settingsBookmarkOpenModeLabel) settingsBookmarkOpenModeLabel.textContent = t('settingsBookmarkOpenModeLabel');
   if (settingsBookmarkOpenModeHint) settingsBookmarkOpenModeHint.textContent = t('settingsBookmarkOpenModeHint');
   if (bookmarkBoardBackBtn) bookmarkBoardBackBtn.textContent = t('bookmarkBoardBack');
@@ -1106,6 +1180,7 @@ function applyStaticText() {
   syncLanguageSwitcher();
   syncBackgroundControls();
   syncQuickLinkOpenModeControls();
+  syncBookmarkBoardLimitControls();
   syncBookmarkOpenModeControls();
   syncOpenTabsViewControls();
   setCurrentSettingsPanel(currentSettingsPanel);
@@ -1630,6 +1705,39 @@ function getBookmarkBoardSearchQuery(boardId) {
   return bookmarkBoardSearchQueries[boardId] || '';
 }
 
+function getVisibleBookmarkBoardEntries() {
+  return getBookmarkBoardEntries().slice(0, bookmarkBoardDisplayLimit);
+}
+
+function restoreBookmarkBoardSearchFocus(boardId, selectionStart = null, selectionEnd = null) {
+  if (!boardId) return;
+  window.requestAnimationFrame(() => {
+    const nextInput = document.querySelector(`.bookmark-board-search[data-action="search-bookmark-board"][data-bookmark-board-id="${CSS.escape(boardId)}"]`);
+    if (!(nextInput instanceof HTMLInputElement)) return;
+    try {
+      nextInput.focus({ preventScroll: true });
+    } catch {
+      nextInput.focus();
+    }
+    if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {
+      nextInput.setSelectionRange(selectionStart, selectionEnd);
+    }
+  });
+}
+
+async function applyBookmarkBoardSearchInput(input, { restoreFocus = false } = {}) {
+  if (!(input instanceof HTMLInputElement)) return;
+  const boardId = input.dataset.bookmarkBoardId;
+  if (!boardId) return;
+  const selectionStart = input.selectionStart;
+  const selectionEnd = input.selectionEnd;
+  setBookmarkBoardSearchQuery(boardId, input.value || '');
+  await renderBookmarkBoardSection();
+  if (restoreFocus) {
+    restoreBookmarkBoardSearchFocus(boardId, selectionStart, selectionEnd);
+  }
+}
+
 function setBookmarkBoardSearchQuery(boardId, query) {
   bookmarkBoardSearchQueries = {
     ...bookmarkBoardSearchQueries,
@@ -1647,6 +1755,10 @@ async function setBookmarkBoardRootFolder(folderId, { notify = true } = {}) {
     await renderBookmarkBoardSection();
     if (notify) showToast(t('toastBookmarkFolderSaved'));
     return true;
+  }
+  if (existingBoards.length >= BOOKMARK_BOARD_MAX_ENTRIES) {
+    if (notify) showToast(t('toastBookmarkBoardLimitReached'));
+    return false;
   }
   const nextBoard = normalizeBookmarkBoardConfigEntry({
     id: folder.id,
@@ -1692,13 +1804,17 @@ async function removeBookmarkBoardEntry(boardId) {
   await saveBookmarkBoardConfigPreference({
     ...bookmarkBoardConfig,
     boards,
+    folderId: '',
+    folderTitle: '',
+    currentFolderId: '',
+    currentFolderTitle: '',
   });
   delete bookmarkBoardStateById[board.id];
   delete bookmarkBoardSearchQueries[board.id];
   delete bookmarkBoardSearchQueries[board.folderId];
   await renderBookmarkFolderPicker();
   await renderBookmarkBoardSection();
-  showToast(t('toastBookmarkFolderSaved'));
+  showToast(t('toastBookmarkBoardRemoved'));
   return true;
 }
 
@@ -1792,9 +1908,10 @@ function renderBookmarkBoardGroupShell({ board, currentFolder, items, filteredIt
     : t('bookmarkBoardMetaSelected', currentTitle, bookmarkCount);
   const canGoBack = !!board.currentFolderId && board.currentFolderId !== board.folderId;
   const query = getBookmarkBoardSearchQuery(board.id);
+  const hasSingleItem = filteredItems.length === 1;
   const bodyHtml = filteredItems.length === 0
     ? `<div class="bookmark-board-group-empty">${escapeHtml(items.length === 0 ? t('bookmarkBoardEmptyFolder') : t('bookmarkBoardEmptyNoResults'))}</div>`
-    : `<div class="bookmark-board-list bookmark-board-group-list">
+    : `<div class="bookmark-board-list bookmark-board-group-list${hasSingleItem ? ' is-single-item' : ''}">
         ${filteredItems.map(item => item.type === 'folder' ? renderBookmarkBoardFolderCard(item, board.id) : renderBookmarkBoardCard(item, board.id)).join('')}
       </div>`;
 
@@ -1842,11 +1959,15 @@ async function renderBookmarkBoardSection() {
     toggleBtn.setAttribute('aria-expanded', isBookmarkBoardCollapsed ? 'false' : 'true');
   }
   sectionEl.classList.toggle('is-collapsed', isBookmarkBoardCollapsed);
+  const totalBoards = getBookmarkBoardEntries().length;
+  const isAtBoardLimit = totalBoards >= BOOKMARK_BOARD_MAX_ENTRIES;
   if (addBtn) {
     addBtn.textContent = t('bookmarkBoardAdd');
     addBtn.title = t('bookmarkBoardAdd');
     addBtn.setAttribute('aria-label', t('bookmarkBoardAdd'));
-    addBtn.style.display = isBookmarkBoardCollapsed ? 'none' : 'inline-flex';
+    addBtn.style.display = isBookmarkBoardCollapsed || totalBoards === 0 ? 'none' : 'inline-flex';
+    addBtn.disabled = isAtBoardLimit;
+    addBtn.classList.toggle('is-disabled', isAtBoardLimit);
   }
 
   if (isBookmarkBoardCollapsed) {
@@ -1862,7 +1983,7 @@ async function renderBookmarkBoardSection() {
     return;
   }
 
-  const boards = getBookmarkBoardEntries();
+  const boards = getVisibleBookmarkBoardEntries();
 
   if (boards.length === 0) {
     sectionEl.style.display = 'block';
@@ -1900,7 +2021,9 @@ async function renderBookmarkBoardSection() {
   listEl.classList.toggle('has-multiple-boards', boards.length > 1);
   searchShell.style.display = 'none';
   if (backBtn) backBtn.style.display = 'none';
-  metaEl.textContent = boards.length > 1 ? `${boards.length} ${currentLanguage === 'zh-CN' ? '个工作台' : 'boards'}` : '';
+  metaEl.textContent = totalBoards > 1
+    ? t('bookmarkBoardVisibleCountMeta', Math.min(totalBoards, bookmarkBoardDisplayLimit), totalBoards)
+    : '';
   emptyEl.style.display = 'none';
 
   const groupHtml = [];
@@ -3759,6 +3882,10 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'open-bookmark-folder-settings') {
+    if (getBookmarkBoardEntries().length >= BOOKMARK_BOARD_MAX_ENTRIES) {
+      showToast(t('toastBookmarkBoardLimitReached'));
+      return;
+    }
     openBookmarkFolderSettings();
     return;
   }
@@ -3798,6 +3925,28 @@ document.addEventListener('click', async (e) => {
     await setBookmarkOpenModePreference(mode);
     syncBookmarkOpenModeControls();
     showToast(t('settingsSaved'));
+    return;
+  }
+
+  if (action === 'set-bookmark-board-display-limit') {
+    const limit = Number(actionEl.dataset.bookmarkBoardLimit || 0);
+    if (!limit || limit === bookmarkBoardDisplayLimit) return;
+    await setBookmarkBoardDisplayLimitPreference(limit);
+    syncBookmarkBoardLimitControls();
+    await renderBookmarkBoardSection();
+    showToast(t('settingsSaved'));
+    return;
+  }
+
+  if (action === 'close-confirm-modal') {
+    closeConfirmModal();
+    return;
+  }
+
+  if (action === 'confirm-modal-submit') {
+    const submit = pendingConfirmAction;
+    closeConfirmModal();
+    if (submit) await submit();
     return;
   }
 
@@ -4557,25 +4706,15 @@ document.addEventListener('input', async (e) => {
   const input = e.target;
   if (!(input instanceof HTMLInputElement)) return;
   if (input.dataset.action !== 'search-bookmark-board') return;
-  const boardId = input.dataset.bookmarkBoardId;
-  if (!boardId) return;
-  setBookmarkBoardSearchQuery(boardId, input.value || '');
-  await renderBookmarkBoardSection();
+  if ('isComposing' in e && e.isComposing) return;
+  await applyBookmarkBoardSearchInput(input, { restoreFocus: true });
 });
 
-document.addEventListener('click', async (e) => {
-  const actionEl = e.target.closest('[data-action]');
-  if (!actionEl) return;
-  const action = actionEl.dataset.action;
-  if (action === 'close-confirm-modal') {
-    closeConfirmModal();
-    return;
-  }
-  if (action === 'confirm-modal-submit') {
-    const submit = pendingConfirmAction;
-    closeConfirmModal();
-    if (submit) await submit();
-  }
+document.addEventListener('compositionend', async (e) => {
+  const input = e.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  if (input.dataset.action !== 'search-bookmark-board') return;
+  await applyBookmarkBoardSearchInput(input, { restoreFocus: true });
 });
 
 document.addEventListener('click', (e) => {
@@ -4797,6 +4936,7 @@ async function initializeApp() {
   await loadBackgroundPreference();
   await loadQuickLinksOpenModePreference();
   await loadBookmarkBoardConfigPreference();
+  await loadBookmarkBoardDisplayLimitPreference();
   await loadBookmarkBoardCollapsedPreference();
   await loadBookmarkOpenModePreference();
   await loadOpenTabsViewPreference();
