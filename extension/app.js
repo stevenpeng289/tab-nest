@@ -61,6 +61,7 @@ let draggedWindowTabState = null;
 let dashboardRefreshTimer = null;
 let activeQuickLinkMenuId = '';
 let pendingConfirmAction = null;
+let sessionModalMode = 'create';
 
 const LANGUAGE_STORAGE_KEY = 'uiLanguage';
 const THEME_STORAGE_KEY = 'uiTheme';
@@ -259,6 +260,19 @@ const MESSAGES = {
     sessionSourceWindowSession: '窗口会话',
     sessionRestoreAll: '恢复全部',
     sessionRestoreTab: '恢复',
+    sessionRename: '重命名',
+    sessionPin: '固定保存',
+    sessionUnpin: '取消固定',
+    sessionPinnedBadge: '固定会话',
+    sessionTemporaryBadge: '临时会话',
+    sessionModalCreateTitle: '保存工作会话',
+    sessionModalEditTitle: '编辑工作会话',
+    sessionNameLabel: '会话名称',
+    sessionNamePlaceholder: '例如 出海资料 / 支付排查 / 招聘准备',
+    sessionPinnedLabel: '固定保存',
+    sessionPinnedHint: '固定后恢复不会消失，更适合长期复用的工作会话。',
+    sessionSave: '保存会话',
+    sessionUpdate: '更新会话',
     sessionDelete: '删除会话',
     sessionTabsCount: count => `${count} 个标签`,
     sessionWindowsCount: count => `${count} 个窗口`,
@@ -267,6 +281,10 @@ const MESSAGES = {
     toastSessionSaved: count => `已收纳 ${count} 个标签`,
     toastSessionRestored: count => `已恢复 ${count} 个标签`,
     toastSessionDeleted: '会话已删除',
+    toastSessionUpdated: '工作会话已更新',
+    toastSessionPinned: '已固定工作会话',
+    toastSessionUnpinned: '已取消固定工作会话',
+    toastSessionInvalidName: '请输入工作会话名称',
     toastSessionNothingToSave: '没有可收纳的标签',
     toastSessionSaveFailed: '收纳会话失败',
     toastSessionRestoreFailed: '恢复会话失败',
@@ -501,6 +519,19 @@ const MESSAGES = {
     sessionSourceWindowSession: 'Window session',
     sessionRestoreAll: 'Restore all',
     sessionRestoreTab: 'Open',
+    sessionRename: 'Rename',
+    sessionPin: 'Pin',
+    sessionUnpin: 'Unpin',
+    sessionPinnedBadge: 'Pinned',
+    sessionTemporaryBadge: 'Temporary',
+    sessionModalCreateTitle: 'Save work session',
+    sessionModalEditTitle: 'Edit work session',
+    sessionNameLabel: 'Session name',
+    sessionNamePlaceholder: 'For example Indie research / Payment debug / Hiring prep',
+    sessionPinnedLabel: 'Keep pinned',
+    sessionPinnedHint: 'Pinned sessions stay after restore and work better as reusable workspaces.',
+    sessionSave: 'Save session',
+    sessionUpdate: 'Update session',
     sessionDelete: 'Delete session',
     sessionTabsCount: count => `${count} tab${count !== 1 ? 's' : ''}`,
     sessionWindowsCount: count => `${count} window${count !== 1 ? 's' : ''}`,
@@ -509,6 +540,10 @@ const MESSAGES = {
     toastSessionSaved: count => `Stashed ${count} tab${count !== 1 ? 's' : ''}`,
     toastSessionRestored: count => `Restored ${count} tab${count !== 1 ? 's' : ''}`,
     toastSessionDeleted: 'Session deleted',
+    toastSessionUpdated: 'Work session updated',
+    toastSessionPinned: 'Session pinned',
+    toastSessionUnpinned: 'Session unpinned',
+    toastSessionInvalidName: 'Enter a session name',
     toastSessionNothingToSave: 'No tabs to stash',
     toastSessionSaveFailed: 'Failed to stash tabs',
     toastSessionRestoreFailed: 'Failed to restore session',
@@ -1343,6 +1378,32 @@ function syncBookmarkCollectionDetailModal() {
   }
 }
 
+function syncSessionModalText() {
+  const titleEl = document.getElementById('sessionModalTitle');
+  const nameLabel = document.getElementById('sessionNameLabel');
+  const nameInput = document.getElementById('sessionNameInput');
+  const pinnedLabel = document.getElementById('sessionPinnedLabel');
+  const pinnedHint = document.getElementById('sessionPinnedHint');
+  const cancelBtn = document.getElementById('sessionCancelBtn');
+  const submitBtn = document.getElementById('sessionSubmitBtn');
+  const closeBtn = document.getElementById('sessionModalCloseBtn');
+  const idInput = document.getElementById('sessionIdInput');
+  const isEditing = !!idInput?.value;
+
+  if (titleEl) titleEl.textContent = isEditing ? t('sessionModalEditTitle') : t('sessionModalCreateTitle');
+  if (nameLabel) nameLabel.textContent = t('sessionNameLabel');
+  if (nameInput) nameInput.placeholder = t('sessionNamePlaceholder');
+  if (pinnedLabel) pinnedLabel.textContent = t('sessionPinnedLabel');
+  if (pinnedHint) pinnedHint.textContent = t('sessionPinnedHint');
+  if (cancelBtn) cancelBtn.textContent = t('confirmDialogCancel');
+  if (submitBtn) submitBtn.textContent = isEditing ? t('sessionUpdate') : t('sessionSave');
+  if (closeBtn) {
+    closeBtn.textContent = '×';
+    closeBtn.title = t('quickLinkModalClose');
+    closeBtn.setAttribute('aria-label', t('quickLinkModalClose'));
+  }
+}
+
 function applyStaticText() {
   document.documentElement.lang = currentLanguage;
 
@@ -1386,6 +1447,7 @@ function applyStaticText() {
   const quickLinkModalCloseBtn = document.getElementById('quickLinkModalCloseBtn');
   const bookmarkCollectionModalCloseBtn = document.getElementById('bookmarkCollectionModalCloseBtn');
   const bookmarkCollectionDetailCloseBtn = document.getElementById('bookmarkCollectionDetailCloseBtn');
+  const sessionModalCloseBtn = document.getElementById('sessionModalCloseBtn');
   const settingsTitle = document.getElementById('settingsModalTitle');
   const settingsAppearanceTab = document.getElementById('settingsAppearanceTab');
   const settingsLinksTab = document.getElementById('settingsLinksTab');
@@ -1484,6 +1546,7 @@ function applyStaticText() {
   if (quickLinkModalCloseBtn) quickLinkModalCloseBtn.title = t('quickLinkModalClose');
   if (bookmarkCollectionModalCloseBtn) bookmarkCollectionModalCloseBtn.textContent = '×';
   if (bookmarkCollectionDetailCloseBtn) bookmarkCollectionDetailCloseBtn.textContent = '×';
+  if (sessionModalCloseBtn) sessionModalCloseBtn.textContent = '×';
   if (settingsTitle) settingsTitle.textContent = t('settingsTitle');
   if (settingsAppearanceTab) settingsAppearanceTab.textContent = t('settingsAppearance');
   if (settingsLinksTab) settingsLinksTab.textContent = t('settingsLinks');
@@ -1518,6 +1581,7 @@ function applyStaticText() {
   syncQuickLinkModalText();
   syncBookmarkCollectionModalText();
   syncBookmarkCollectionDetailModal();
+  syncSessionModalText();
 }
 
 function updateTabOutDupeBannerText(count) {
@@ -2702,6 +2766,47 @@ function openBookmarkCollectionDetailModal(collectionId = '') {
   }, 0);
 }
 
+function closeSessionModal() {
+  const backdrop = document.getElementById('sessionModalBackdrop');
+  const form = document.getElementById('sessionForm');
+  const idInput = document.getElementById('sessionIdInput');
+  const pinnedInput = document.getElementById('sessionPinnedInput');
+  if (backdrop) backdrop.style.display = 'none';
+  if (form) form.reset();
+  if (idInput) idInput.value = '';
+  if (pinnedInput instanceof HTMLInputElement) pinnedInput.checked = false;
+  sessionModalMode = 'create';
+  syncSessionModalText();
+}
+
+async function openSessionModal(sessionId = '') {
+  const backdrop = document.getElementById('sessionModalBackdrop');
+  const idInput = document.getElementById('sessionIdInput');
+  const nameInput = document.getElementById('sessionNameInput');
+  const pinnedInput = document.getElementById('sessionPinnedInput');
+  if (!backdrop || !(idInput instanceof HTMLInputElement) || !(nameInput instanceof HTMLInputElement) || !(pinnedInput instanceof HTMLInputElement)) return;
+
+  sessionModalMode = sessionId ? 'edit' : 'create';
+  idInput.value = sessionId;
+  nameInput.value = '';
+  pinnedInput.checked = false;
+
+  if (sessionId) {
+    const sessions = await getTabSessions();
+    const session = sessions.find(item => item.id === sessionId);
+    if (!session) return;
+    nameInput.value = session.name || getSessionTitle(session);
+    pinnedInput.checked = !!session.pinned;
+  }
+
+  backdrop.style.display = 'flex';
+  syncSessionModalText();
+  setTimeout(() => {
+    nameInput.focus();
+    nameInput.select();
+  }, 0);
+}
+
 function closeConfirmModal() {
   pendingConfirmAction = null;
   const backdrop = document.getElementById('confirmModalBackdrop');
@@ -3102,6 +3207,8 @@ function normalizeTabSession(session, index = 0) {
     id: session.id || `session-${Date.now()}-${index}`,
     createdAt: session.createdAt || new Date().toISOString(),
     sourceType,
+    name: String(session.name || '').trim(),
+    pinned: !!session.pinned,
     tabs,
   };
 }
@@ -3144,6 +3251,7 @@ function getSessionTopDomains(session, limit = 3) {
 }
 
 function getSessionTitle(session) {
+  if (session?.name) return session.name;
   const sourceLabel = session.sourceType === 'all-windows'
     ? t('sessionSourceAllWindows')
     : session.sourceType === 'window-session'
@@ -3175,6 +3283,8 @@ async function stashTabsAsSession(tabs, sourceType) {
     id: `session-${Date.now()}`,
     createdAt: new Date().toISOString(),
     sourceType,
+    name: '',
+    pinned: false,
     tabs,
   }, sessions.length);
 
@@ -3219,6 +3329,8 @@ async function stashWindowsAsSessions(tabs) {
     id: `session-${baseTimestamp}-${group.windowId || index}`,
     createdAt: new Date(baseTimestamp + index).toISOString(),
     sourceType: 'window-session',
+    name: '',
+    pinned: false,
     tabs: group.tabs,
   }, sessions.length + index));
 
@@ -3250,7 +3362,7 @@ async function restoreSession(sessionId) {
     await restoreTabsIntoNewWindow(group.tabs, index === 0);
   }
 
-  await saveTabSessions(sessions.filter(item => item.id !== sessionId));
+  await saveTabSessions(session.pinned ? sessions : sessions.filter(item => item.id !== sessionId));
   await fetchOpenTabs();
   return session;
 }
@@ -3265,6 +3377,26 @@ async function restoreSessionTab(sessionId, url) {
   await chrome.tabs.create({ windowId: currentWindow.id, url: tab.url, active: true });
   await fetchOpenTabs();
   return tab;
+}
+
+async function updateSession(sessionId, patch = {}) {
+  const sessions = await getTabSessions();
+  const target = sessions.find(item => item.id === sessionId);
+  if (!target) throw new Error('session-not-found');
+
+  const nextSessions = sessions.map(session => (
+    session.id === sessionId
+      ? normalizeTabSession({
+          ...session,
+          ...patch,
+          name: typeof patch.name === 'string' ? patch.name.trim() : session.name,
+          pinned: typeof patch.pinned === 'boolean' ? patch.pinned : session.pinned,
+        })
+      : session
+  ));
+
+  await saveTabSessions(nextSessions);
+  return nextSessions.find(item => item.id === sessionId) || null;
 }
 
 async function refreshDashboardAfterSessionChange(delay = 280) {
@@ -4078,6 +4210,8 @@ function renderSessionCard(session) {
   const sessionTitle = escapeHtml(getSessionTitle(session));
   const meta = `${t('sessionTabsCount', session.tabs.length)} · ${t('sessionWindowsCount', getSessionWindowCount(session))} · ${timeAgo(session.createdAt)}`;
   const domainSummary = escapeHtml(getSessionTopDomains(session, 3).join(' · '));
+  const sessionId = escapeHtml(session.id);
+  const statusLabel = session.pinned ? t('sessionPinnedBadge') : t('sessionTemporaryBadge');
   const previewTabs = session.tabs.slice(0, 4).map(tab => {
     const faviconUrl = escapeHtml(getFaviconSource(tab.url, tab.title, 32, tab.favIconUrl));
     const safeTitle = escapeHtml(tab.title || tab.url);
@@ -4096,11 +4230,26 @@ function renderSessionCard(session) {
   const moreCount = Math.max(0, session.tabs.length - 4);
 
   return `
-    <article class="session-card" data-session-id="${escapeHtml(session.id)}">
+    <article class="session-card${session.pinned ? ' is-pinned' : ''}" data-session-id="${sessionId}">
       <div class="session-card-header">
         <div>
+          <div class="session-card-status-row">
+            <span class="session-card-status-badge${session.pinned ? ' is-pinned' : ''}">${escapeHtml(statusLabel)}</span>
+          </div>
           <div class="session-card-title">${sessionTitle}</div>
           <div class="session-card-meta">${meta}</div>
+        </div>
+        <div class="session-card-tools">
+          <button type="button" class="session-card-tool" data-action="open-session-modal" data-session-id="${sessionId}" title="${escapeHtml(t('sessionRename'))}" aria-label="${escapeHtml(t('sessionRename'))}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+            </svg>
+          </button>
+          <button type="button" class="session-card-tool" data-action="toggle-session-pinned" data-session-id="${sessionId}" title="${escapeHtml(session.pinned ? t('sessionUnpin') : t('sessionPin'))}" aria-label="${escapeHtml(session.pinned ? t('sessionUnpin') : t('sessionPin'))}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 17.25v3.75m0-3.75L8.25 13.5m3.75 3.75 3.75-3.75M6 4.5h12l-2.25 6.75H8.25L6 4.5Z" />
+            </svg>
+          </button>
         </div>
       </div>
       ${domainSummary ? `<div class="session-card-domain-summary">${domainSummary}</div>` : ''}
@@ -4109,8 +4258,8 @@ function renderSessionCard(session) {
       </div>
       ${moreCount > 0 ? `<div class="session-preview-more">${t('sessionMoreTabs', moreCount)}</div>` : ''}
       <div class="session-card-actions">
-        <button type="button" class="action-btn save-tabs" data-action="restore-session" data-session-id="${escapeHtml(session.id)}">${t('sessionRestoreAll')}</button>
-        <button type="button" class="action-btn danger" data-action="delete-session" data-session-id="${escapeHtml(session.id)}">${t('sessionDelete')}</button>
+        <button type="button" class="action-btn save-tabs" data-action="restore-session" data-session-id="${sessionId}">${t('sessionRestoreAll')}</button>
+        <button type="button" class="action-btn danger" data-action="delete-session" data-session-id="${sessionId}">${t('sessionDelete')}</button>
       </div>
     </article>`;
 }
@@ -4672,6 +4821,13 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'close-session-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSessionModal();
+    return;
+  }
+
   if (action === 'stash-current-window') {
     try {
       const currentWindow = await chrome.windows.getCurrent();
@@ -4681,10 +4837,11 @@ document.addEventListener('click', async (e) => {
         return;
       }
 
-      await stashTabsAsSession(tabs, 'current-window');
+      const session = await stashTabsAsSession(tabs, 'current-window');
       setStashMenuOpen(false);
       await renderDashboard();
       showToast(t('toastSessionSaved', tabs.length));
+      if (session?.id) await openSessionModal(session.id);
     } catch (err) {
       console.warn('[tab-out] Could not stash current window:', err);
       showToast(t('toastSessionSaveFailed'));
@@ -4700,10 +4857,11 @@ document.addEventListener('click', async (e) => {
         return;
       }
 
-      await stashWindowsAsSessions(tabs);
+      const sessions = await stashWindowsAsSessions(tabs);
       setStashMenuOpen(false);
       await renderDashboard();
       showToast(t('toastSessionSaved', tabs.length));
+      if (sessions.length === 1 && sessions[0]?.id) await openSessionModal(sessions[0].id);
     } catch (err) {
       console.warn('[tab-out] Could not stash all windows:', err);
       showToast(t('toastSessionSaveFailed'));
@@ -4740,6 +4898,33 @@ document.addEventListener('click', async (e) => {
     } catch (err) {
       console.warn('[tab-out] Could not restore session tab:', err);
       showToast(t('toastSessionRestoreFailed'));
+    }
+    return;
+  }
+
+  if (action === 'open-session-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    await openSessionModal(actionEl.dataset.sessionId || '');
+    return;
+  }
+
+  if (action === 'toggle-session-pinned') {
+    e.preventDefault();
+    e.stopPropagation();
+    const sessionId = actionEl.dataset.sessionId;
+    if (!sessionId) return;
+
+    try {
+      const sessions = await getTabSessions();
+      const session = sessions.find(item => item.id === sessionId);
+      if (!session) return;
+      await updateSession(sessionId, { pinned: !session.pinned });
+      await renderDashboard();
+      showToast(t(session.pinned ? 'toastSessionUnpinned' : 'toastSessionPinned'));
+    } catch (err) {
+      console.warn('[tab-out] Could not toggle session pinned state:', err);
+      showToast(t('toastSessionSaveFailed'));
     }
     return;
   }
@@ -5675,6 +5860,35 @@ document.getElementById('bookmarkCollectionForm')?.addEventListener('submit', as
   showToast(t('toastBookmarkCollectionSaved'));
 });
 
+document.getElementById('sessionForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const idInput = document.getElementById('sessionIdInput');
+  const nameInput = document.getElementById('sessionNameInput');
+  const pinnedInput = document.getElementById('sessionPinnedInput');
+  if (!(idInput instanceof HTMLInputElement) || !(nameInput instanceof HTMLInputElement) || !(pinnedInput instanceof HTMLInputElement)) return;
+
+  const sessionId = idInput.value.trim();
+  const name = nameInput.value.trim();
+  const pinned = !!pinnedInput.checked;
+
+  if (!name) {
+    showToast(t('toastSessionInvalidName'));
+    nameInput.focus();
+    return;
+  }
+
+  try {
+    await updateSession(sessionId, { name, pinned });
+    closeSessionModal();
+    await renderDashboard();
+    showToast(t('toastSessionUpdated'));
+  } catch (err) {
+    console.warn('[tab-out] Could not update session:', err);
+    showToast(t('toastSessionSaveFailed'));
+  }
+});
+
 document.getElementById('quickLinkModalBackdrop')?.addEventListener('click', (e) => {
   if (e.target.id === 'quickLinkModalBackdrop') closeQuickLinkModal();
 });
@@ -5685,6 +5899,10 @@ document.getElementById('bookmarkCollectionModalBackdrop')?.addEventListener('cl
 
 document.getElementById('bookmarkCollectionDetailBackdrop')?.addEventListener('click', (e) => {
   if (e.target.id === 'bookmarkCollectionDetailBackdrop') closeBookmarkCollectionDetailModal();
+});
+
+document.getElementById('sessionModalBackdrop')?.addEventListener('click', (e) => {
+  if (e.target.id === 'sessionModalBackdrop') closeSessionModal();
 });
 
 document.getElementById('settingsModalBackdrop')?.addEventListener('click', (e) => {
@@ -5789,6 +6007,8 @@ document.addEventListener('keydown', (e) => {
   if (bookmarkCollectionBackdrop?.style.display === 'flex') closeBookmarkCollectionModal();
   const bookmarkCollectionDetailBackdrop = document.getElementById('bookmarkCollectionDetailBackdrop');
   if (bookmarkCollectionDetailBackdrop?.style.display === 'flex') closeBookmarkCollectionDetailModal();
+  const sessionModalBackdrop = document.getElementById('sessionModalBackdrop');
+  if (sessionModalBackdrop?.style.display === 'flex') closeSessionModal();
   const confirmBackdrop = document.getElementById('confirmModalBackdrop');
   if (confirmBackdrop?.style.display === 'flex') closeConfirmModal();
   if (isSettingsModalOpen) setSettingsModalOpen(false);

@@ -5295,6 +5295,75 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   gap: 10px;
 }
 
+.session-card.is-pinned {
+  border-color: rgba(200, 113, 58, 0.2);
+  box-shadow:
+    0 16px 30px rgba(200, 113, 58, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.82);
+}
+
+.session-card-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.session-card-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8c7b6f;
+  background: rgba(140, 123, 111, 0.1);
+}
+
+.session-card-status-badge.is-pinned {
+  color: rgba(161, 81, 37, 0.98);
+  background: rgba(200, 113, 58, 0.12);
+}
+
+.session-card-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.session-card-tool {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.session-card-tool:hover {
+  background: rgba(255, 245, 236, 0.92);
+  color: rgba(161, 81, 37, 0.98);
+  transform: translateY(-1px);
+}
+
+.session-card-tool svg {
+  width: 15px;
+  height: 15px;
+}
+
+.session-card.is-pinned .session-card-tool[data-action="toggle-session-pinned"] {
+  background: rgba(200, 113, 58, 0.12);
+  color: rgba(161, 81, 37, 0.98);
+}
+
 .session-card-title {
   font-size: 14px;
   font-weight: 600;
@@ -5421,6 +5490,87 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   font-size: 12px;
 }
 
+.session-modal-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(232, 226, 218, 0.95);
+  background: rgba(255, 252, 248, 0.82);
+  cursor: pointer;
+}
+
+.session-modal-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.session-modal-toggle-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.session-modal-toggle-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.session-modal-toggle-switch {
+  position: relative;
+  width: 52px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.session-modal-toggle-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.session-modal-toggle-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(205, 197, 189, 0.7);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.session-modal-toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fffdf9;
+  box-shadow: 0 6px 12px rgba(26, 22, 19, 0.12);
+  transition: transform 0.18s ease;
+}
+
+.session-modal-toggle-switch input:checked + .session-modal-toggle-slider {
+  background: linear-gradient(135deg, rgba(222, 136, 66, 1), rgba(188, 98, 41, 1));
+  box-shadow: 0 10px 22px rgba(200, 113, 58, 0.18);
+}
+
+.session-modal-toggle-switch input:checked + .session-modal-toggle-slider::after {
+  transform: translateX(20px);
+}
+
+.session-modal-toggle-switch input:focus-visible + .session-modal-toggle-slider {
+  box-shadow:
+    0 0 0 4px rgba(200, 113, 58, 0.1),
+    0 10px 22px rgba(200, 113, 58, 0.18);
+}
+
 body.theme-dark .mission-card,
 body.theme-dark .deferred-column,
 body.theme-dark footer,
@@ -5434,6 +5584,60 @@ body.theme-dark .quick-link-modal {
   box-shadow:
     0 24px 48px rgba(0, 0, 0, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.theme-dark .session-card.is-pinned {
+  border-color: rgba(236, 168, 118, 0.2);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(236, 168, 118, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.theme-dark .session-card-status-badge {
+  color: rgba(225, 229, 236, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.theme-dark .session-card-status-badge.is-pinned {
+  color: #f4b782;
+  background: rgba(236, 168, 118, 0.12);
+}
+
+body.theme-dark .session-card-tool {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(225, 229, 236, 0.72);
+}
+
+body.theme-dark .session-card-tool:hover {
+  background: rgba(236, 168, 118, 0.12);
+  color: #f4b782;
+}
+
+body.theme-dark .session-card.is-pinned .session-card-tool[data-action="toggle-session-pinned"] {
+  background: rgba(236, 168, 118, 0.12);
+  color: #f4b782;
+}
+
+body.theme-dark .session-modal-toggle-row {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+body.theme-dark .session-modal-toggle-title {
+  color: #f7f5f1;
+}
+
+body.theme-dark .session-modal-toggle-meta {
+  color: rgba(225, 229, 236, 0.68);
+}
+
+body.theme-dark .session-modal-toggle-slider {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+body.theme-dark .session-modal-toggle-slider::after {
+  background: #f7f5f1;
 }
 
 body.theme-dark .floating-tools-rail {

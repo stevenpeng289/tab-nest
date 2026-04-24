@@ -441,6 +441,36 @@
   </div>
 </div>
 
+<div class="quick-link-modal-backdrop" id="sessionModalBackdrop" style="display:none">
+  <div class="quick-link-modal" role="dialog" aria-modal="true" aria-labelledby="sessionModalTitle">
+    <div class="quick-link-modal-header">
+      <h3 id="sessionModalTitle"></h3>
+      <button type="button" class="quick-link-modal-close" data-action="close-session-modal" id="sessionModalCloseBtn"></button>
+    </div>
+    <form class="quick-link-form" id="sessionForm">
+      <input type="hidden" id="sessionIdInput">
+      <label class="quick-link-field">
+        <span id="sessionNameLabel"></span>
+        <input type="text" id="sessionNameInput" maxlength="60" required>
+      </label>
+      <label class="session-modal-toggle-row" for="sessionPinnedInput">
+        <span class="session-modal-toggle-copy">
+          <span class="session-modal-toggle-title" id="sessionPinnedLabel"></span>
+          <span class="session-modal-toggle-meta" id="sessionPinnedHint"></span>
+        </span>
+        <span class="session-modal-toggle-switch">
+          <input type="checkbox" id="sessionPinnedInput">
+          <span class="session-modal-toggle-slider" aria-hidden="true"></span>
+        </span>
+      </label>
+      <div class="quick-link-form-actions">
+        <button type="button" class="action-btn" data-action="close-session-modal" id="sessionCancelBtn"></button>
+        <button type="submit" class="action-btn primary" id="sessionSubmitBtn"></button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Boot loader: tries config.local.js first, then loads app.js -->
 <script src="boot.js"></script>
 </body>
