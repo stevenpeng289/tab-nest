@@ -2,7 +2,7 @@
 
 一个用于替换浏览器新标签页的标签管理扩展。
 
-TabNest 会把你当前打开的标签页整理成一个可视化面板，支持按域名查看、按窗口查看、快捷入口、自定义背景、会话收纳，以及在窗口视图中直接拖拽调整浏览器真实标签顺序。
+TabNest 会把你当前打开的标签页整理成一个可视化面板，支持按域名查看、按窗口查看、书签工作台、快捷入口、自定义背景、会话收纳，以及在窗口视图中直接拖拽调整浏览器真实标签顺序。
 
 整个项目纯本地运行，无服务端、无账号系统、无外部数据上传。
 
@@ -19,6 +19,7 @@ TabNest 是一个基于 Chrome Extension Manifest V3 的新标签页扩展。
 - 切换到窗口视图，按真实窗口顺序管理标签
 - 直接拖拽窗口视图中的标签，浏览器顶部标签栏顺序也会同步变化
 - 保存常用快捷入口
+- 将高频书签目录固定成书签工作台，直接访问当前目录内容
 - 自定义纯色背景或上传背景图片
 - 切换中英文、浅色/深色主题
 - 将当前窗口或全部窗口收纳成会话，后续一键恢复
@@ -41,6 +42,9 @@ TabNest 是一个基于 Chrome Extension Manifest V3 的新标签页扩展。
 
 - 快捷入口
   支持自定义常用网站入口，可新增、编辑、删除。
+
+- 书签工作台
+  支持将一个或多个书签目录固定到首页，展示当前目录下的书签和子目录，支持进入子目录、搜索当前目录、删除单个书签以及移除工作台。
 
 - 自定义背景
   支持纯色背景切换，也支持上传自定义背景图片。
@@ -72,8 +76,8 @@ TabNest 是一个基于 Chrome Extension Manifest V3 的新标签页扩展。
 1. 克隆仓库
 
 ```bash
-git clone https://github.com/zarazhangrui/tab-out.git
-cd tab-out
+git clone https://github.com/Acorn2/tab-next.git
+cd tab-next
 ```
 
 2. 打开 Chrome 扩展管理页
@@ -95,7 +99,7 @@ chrome://extensions
 如果你使用 Codex、Claude Code 等 coding agent，也可以直接把仓库地址发给它，让它帮你完成安装引导：
 
 ```text
-https://github.com/zarazhangrui/tab-out
+https://github.com/Acorn2/tab-next
 ```
 
 ---
@@ -151,6 +155,9 @@ https://github.com/zarazhangrui/tab-out
 - `storage`
   保存用户偏好设置与本地数据
 
+- `bookmarks`
+  读取用户选择展示的书签目录，并支持书签工作台中的目录浏览与书签删除
+
 ### 本地存储内容
 
 以下内容会保存在 `chrome.storage.local`：
@@ -160,6 +167,7 @@ https://github.com/zarazhangrui/tab-out
 - 快捷入口
 - 背景图片或背景色
 - 快捷入口打开方式
+- 书签工作台配置
 - 收纳会话
 - 稍后保存列表
 
@@ -183,7 +191,7 @@ https://github.com/zarazhangrui/tab-out
 ## 目录结构
 
 ```text
-tab-out/
+tab-next/
 ├── extension/
 │   ├── app.js
 │   ├── background.js

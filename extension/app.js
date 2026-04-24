@@ -4109,11 +4109,15 @@ document.addEventListener('click', async (e) => {
     const sessions = await getTabSessions();
     const session = sessions.find(item => item.id === sessionId);
     if (!session) return;
-    if (!window.confirm(t('sessionDeleteConfirm', getSessionTitle(session)))) return;
-
-    await deleteSession(sessionId);
-    await renderDashboard();
-    showToast(t('toastSessionDeleted'));
+    openConfirmModal({
+      title: t('sessionDelete'),
+      body: t('sessionDeleteConfirm', getSessionTitle(session)),
+      onConfirm: async () => {
+        await deleteSession(sessionId);
+        await renderDashboard();
+        showToast(t('toastSessionDeleted'));
+      },
+    });
     return;
   }
 
@@ -4323,12 +4327,16 @@ document.addEventListener('click', async (e) => {
     const linkId = actionEl.dataset.quickLinkId;
     const link = quickLinks.find(item => item.id === linkId);
     if (!link) return;
-    if (!window.confirm(t('quickLinkDeleteConfirm', link.title))) return;
-
-    activeQuickLinkMenuId = '';
-    await saveQuickLinks(quickLinks.filter(item => item.id !== linkId));
-    await renderQuickLinksSection();
-    showToast(t('toastQuickLinkDeleted'));
+    openConfirmModal({
+      title: t('quickLinkDelete'),
+      body: t('quickLinkDeleteConfirm', link.title),
+      onConfirm: async () => {
+        activeQuickLinkMenuId = '';
+        await saveQuickLinks(quickLinks.filter(item => item.id !== linkId));
+        await renderQuickLinksSection();
+        showToast(t('toastQuickLinkDeleted'));
+      },
+    });
     return;
   }
 
