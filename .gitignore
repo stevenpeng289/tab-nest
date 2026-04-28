@@ -2,9 +2,12 @@ node_modules/
 *.log
 *.db
 .DS_Store
+.idea/
 docs/superpowers/
-docs/
+docs/*
+!docs/RELEASE.md
 
 # Personal config (landing page patterns, etc.) — never push to GitHub
 extension/config.local.js
 extension.zip
+dist/
