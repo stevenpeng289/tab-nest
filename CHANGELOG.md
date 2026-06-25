@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - 2026-06-25 16:21
+## [1.4.0] - 2026-06-25 17:24
+
+### Added
+- New "Tab groups" section on the homepage (between Quick links and Bookmark board) that lists every `sourceType: "tab-group"` session as a full-width card with its complete tab list. Each row shows favicon + title + a one-tap "open this single tab" button, plus a "Restore all" action. Empty state is hidden when no tab groups exist.
+
+### Changed
+- The floating sessions panel no longer renders tab-group sessions. Tab groups are now a first-class homepage section so their full tab list is visible. The pack button still counts every session when deciding whether it can run.
 
 ### Added
 - New "Save as tab group" action on the sessions panel that packs every existing session into one new session tagged `sourceType: "tab-group"` (unique URLs only, blocked local/internal tabs filtered out). Tab group sessions get a blue "标签组 / Tab group" badge and stay separate from pinned sessions.

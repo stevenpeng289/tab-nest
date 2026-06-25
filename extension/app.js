@@ -100,6 +100,9 @@ const MESSAGES = {
     openTabsViewWindows: '窗口',
     quickLinksTitle: '常用入口',
     quickLinksSubtitle: '',
+    tabGroupsTitle: '标签组',
+    tabGroupsSubtitle: '把收纳的会话打成一个标签组，单个 tab 就能直接打开。',
+    tabGroupsEmpty: '还没保存的标签组。点会话面板右上角的文件夹按钮把当前会话存进来。',
     bookmarkBoardTitle: '书签工作台',
     bookmarkBoardSubtitle: '把某个书签目录里的内容直接铺开，省去层层点开的时间。',
     bookmarkBoardMetaSelected: (folder, count) => `${folder} · ${count} 个书签`,
@@ -424,6 +427,9 @@ const MESSAGES = {
     confirmDialogConfirm: 'Confirm',
     quickLinksTitle: 'Quick links',
     quickLinksSubtitle: '',
+    tabGroupsTitle: 'Tab groups',
+    tabGroupsSubtitle: 'Pack sessions into a tab group so any single tab can be opened on its own.',
+    tabGroupsEmpty: 'No saved tab groups yet. Hit the folder button on the sessions panel to pack the current session.',
     quickLinksAddButton: 'Add link',
     quickLinksEmptyTitle: 'Pin a few favorites to get started.',
     quickLinksEmptySubtitle: '',
@@ -1429,6 +1435,8 @@ function applyStaticText() {
 
   const quickLinksTitle = document.getElementById('quickLinksTitle');
   const quickLinksSubtitle = document.getElementById('quickLinksSubtitle');
+  const tabGroupsTitleEl = document.getElementById('tabGroupsTitle');
+  const tabGroupsSubtitleEl = document.getElementById('tabGroupsSubtitle');
   const bookmarkBoardTitle = document.getElementById('bookmarkBoardTitle');
   const bookmarkBoardSubtitle = document.getElementById('bookmarkBoardSubtitle');
   const bookmarkBoardSearchInput = document.getElementById('bookmarkBoardSearchInput');
@@ -1490,6 +1498,8 @@ function applyStaticText() {
 
   if (quickLinksTitle) quickLinksTitle.textContent = t('quickLinksTitle');
   if (quickLinksSubtitle) quickLinksSubtitle.textContent = t('quickLinksSubtitle');
+  if (tabGroupsTitleEl) tabGroupsTitleEl.textContent = t('tabGroupsTitle');
+  if (tabGroupsSubtitleEl) tabGroupsSubtitleEl.textContent = t('tabGroupsSubtitle');
   if (bookmarkBoardTitle) bookmarkBoardTitle.textContent = t('bookmarkBoardTitle');
   if (bookmarkBoardSubtitle) bookmarkBoardSubtitle.textContent = t('bookmarkBoardSubtitle');
   if (bookmarkBoardSearchInput) bookmarkBoardSearchInput.placeholder = t('bookmarkBoardSearchPlaceholder');
@@ -4383,6 +4393,75 @@ function renderSessionCard(session) {
     </article>`;
 }
 
+function renderTabGroupCard(session) {
+  const sessionTitle = escapeHtml(getSessionTitle(session));
+  const meta = `${t('sessionTabsCount', session.tabs.length)} · ${timeAgo(session.createdAt)}`;
+  const sessionId = escapeHtml(session.id);
+
+  const tabRows = (session.tabs || []).map(tab => {
+    const faviconUrl = escapeHtml(getFaviconSource(tab.url, tab.title, 32, tab.favIconUrl));
+    const safeTitle = escapeHtml(tab.title || tab.url);
+    const safeUrl = escapeHtml(tab.url);
+    return `
+      <div class="tab-group-row">
+        <img class="tab-group-favicon" src="${faviconUrl}" alt="" data-hide-on-error="true">
+        <div class="tab-group-row-title">${safeTitle}</div>
+        <button type="button" class="tab-group-row-action" data-action="restore-session-tab" data-session-id="${sessionId}" data-session-tab-url="${safeUrl}" title="${t('sessionRestoreTab')}" aria-label="${t('sessionRestoreTab')}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
+        </button>
+      </div>`;
+  }).join('');
+
+  return `
+    <article class="tab-group-card is-tab-group" data-session-id="${sessionId}">
+      <div class="tab-group-card-header">
+        <div>
+          <div class="tab-group-card-status-row">
+            <span class="tab-group-card-status-badge is-tab-group">${escapeHtml(t('sessionTabGroupBadge'))}</span>
+          </div>
+          <div class="tab-group-card-title">${sessionTitle}</div>
+          <div class="tab-group-card-meta">${meta}</div>
+        </div>
+        <div class="tab-group-card-tools">
+          <button type="button" class="tab-group-card-tool" data-action="open-session-modal" data-session-id="${sessionId}" title="${escapeHtml(t('sessionRename'))}" aria-label="${escapeHtml(t('sessionRename'))}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+            </svg>
+          </button>
+          <button type="button" class="tab-group-card-tool" data-action="delete-session" data-session-id="${sessionId}" title="${escapeHtml(t('sessionDelete'))}" aria-label="${escapeHtml(t('sessionDelete'))}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="tab-group-tabs">${tabRows}</div>
+      <div class="tab-group-card-actions">
+        <button type="button" class="action-btn save-tabs" data-action="restore-session" data-session-id="${sessionId}">${t('sessionRestoreAll')}</button>
+      </div>
+    </article>`;
+}
+
+async function renderTabGroupsSection() {
+  const sectionEl = document.getElementById('tabGroupsSection');
+  const listEl = document.getElementById('tabGroupsList');
+  if (!sectionEl || !listEl) return;
+
+  const allSessions = await getTabSessions();
+  const tabGroups = allSessions.filter(session => session.sourceType === 'tab-group');
+
+  if (tabGroups.length === 0) {
+    sectionEl.hidden = true;
+    listEl.innerHTML = '';
+    return;
+  }
+
+  sectionEl.hidden = false;
+  listEl.innerHTML = tabGroups.map(renderTabGroupCard).join('');
+}
+
 async function renderSessionsFloatingPanel() {
   const tools = document.getElementById('floatingTools');
   const rail = document.getElementById('floatingToolsRail');
@@ -4395,7 +4474,9 @@ async function renderSessionsFloatingPanel() {
   if (!tools || !rail || !stashTrigger || !countEl || !badgeEl || !listEl || !trigger) return;
 
   try {
-    const sessions = await getTabSessions();
+    const allSessions = await getTabSessions();
+    // Floating panel only shows non-tab-group sessions. Tab groups live on the homepage.
+    const sessions = allSessions.filter(session => session.sourceType !== 'tab-group');
     const canStash = lastRealTabCount > 0;
     const hasSessions = sessions.length > 0;
 
@@ -4404,7 +4485,8 @@ async function renderSessionsFloatingPanel() {
     trigger.hidden = !hasSessions;
     rail.hidden = !canStash && !hasSessions;
     if (packBtn instanceof HTMLButtonElement) {
-      const canPack = sessions.length >= 1;
+      // Pack always operates on the full session set, including any tab-group ones.
+      const canPack = allSessions.length >= 1;
       packBtn.disabled = !canPack;
       packBtn.title = canPack ? t('sessionPanelPackButton') : t('sessionPanelPackDisabledHint');
     }
@@ -4751,6 +4833,9 @@ async function renderStaticDashboard() {
 
   // --- Render "Saved for Later" column ---
   await renderDeferredColumn();
+
+  // --- Render "Tab Groups" section on the homepage ---
+  await renderTabGroupsSection();
 }
 
 async function renderDashboard() {

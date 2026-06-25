@@ -1167,6 +1167,49 @@ body.theme-dark.has-custom-background .quick-link-modal {
   margin-bottom: 10px;
 }
 
+.tab-groups-section {
+  margin: 4px 0 14px;
+}
+
+.tab-groups-shell {
+  padding: 0 2px 4px;
+}
+
+.tab-groups-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.tab-groups-heading h2 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tab-groups-subtitle {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 460px;
+}
+
+.tab-groups-subtitle:empty {
+  display: none;
+}
+
+.tab-groups-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
 .bookmark-board-section {
   margin: 8px 0 18px;
 }
@@ -5391,6 +5434,191 @@ body.theme-dark .session-panel-pack:hover:not(:disabled) {
   background: rgba(58, 110, 165, 0.12);
 }
 
+/* ---- Tab groups section (homepage) ---- */
+.tab-group-card {
+  padding: 16px 18px 18px;
+  border-radius: 20px;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(58, 110, 165, 0.18);
+  box-shadow:
+    0 16px 30px rgba(58, 110, 165, 0.06),
+    inset 0 1px 1px rgba(255, 255, 255, 0.82);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-group-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 40px rgba(58, 110, 165, 0.1);
+}
+
+.tab-group-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tab-group-card-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tab-group-card-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(58, 110, 165, 0.98);
+  background: rgba(58, 110, 165, 0.12);
+}
+
+.tab-group-card-title {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.tab-group-card-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.tab-group-card-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tab-group-card-tool {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.tab-group-card-tool:hover {
+  background: rgba(200, 113, 58, 0.12);
+  color: var(--ink);
+}
+
+.tab-group-card-tool svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tab-group-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 6px 4px;
+  margin: -6px -4px;
+  scrollbar-width: thin;
+}
+
+.tab-group-tabs::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tab-group-tabs::-webkit-scrollbar-thumb {
+  background: rgba(58, 110, 165, 0.18);
+  border-radius: 999px;
+}
+
+.tab-group-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: transparent;
+  transition: background 0.15s ease;
+  min-width: 0;
+}
+
+.tab-group-row:hover {
+  background: rgba(58, 110, 165, 0.06);
+}
+
+.tab-group-favicon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: rgba(140, 123, 111, 0.08);
+}
+
+.tab-group-row-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.tab-group-row-action {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab-group-row-action:hover {
+  background: rgba(58, 110, 165, 0.14);
+  color: rgba(58, 110, 165, 0.98);
+}
+
+.tab-group-row-action svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tab-group-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .session-card-tools {
   display: inline-flex;
   align-items: center;
@@ -5689,6 +5917,64 @@ body.theme-dark .session-card-tool {
 body.theme-dark .session-card-tool:hover {
   background: rgba(236, 168, 118, 0.12);
   color: #f4b782;
+}
+
+body.theme-dark .tab-group-card {
+  border-color: rgba(122, 165, 213, 0.22);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(122, 165, 213, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.theme-dark .tab-group-card:hover {
+  box-shadow:
+    0 26px 48px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(122, 165, 213, 0.1);
+}
+
+body.theme-dark .tab-group-card-status-badge {
+  color: #8db6e0;
+  background: rgba(122, 165, 213, 0.12);
+}
+
+body.theme-dark .tab-group-card-title {
+  color: #f7f5f1;
+}
+
+body.theme-dark .tab-group-card-meta {
+  color: rgba(225, 229, 236, 0.68);
+}
+
+body.theme-dark .tab-group-card-tool {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(225, 229, 236, 0.72);
+}
+
+body.theme-dark .tab-group-card-tool:hover {
+  background: rgba(236, 168, 118, 0.12);
+  color: #f4b782;
+}
+
+body.theme-dark .tab-group-row:hover {
+  background: rgba(122, 165, 213, 0.1);
+}
+
+body.theme-dark .tab-group-row-title {
+  color: #f7f5f1;
+}
+
+body.theme-dark .tab-group-row-action {
+  color: rgba(225, 229, 236, 0.72);
+}
+
+body.theme-dark .tab-group-row-action:hover {
+  background: rgba(122, 165, 213, 0.18);
+  color: #c8def0;
+}
+
+body.theme-dark .tab-group-tabs::-webkit-scrollbar-thumb {
+  background: rgba(122, 165, 213, 0.22);
 }
 
 body.theme-dark .session-card.is-pinned .session-card-tool[data-action="toggle-session-pinned"] {
