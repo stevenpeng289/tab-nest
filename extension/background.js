@@ -91,3 +91,89 @@ chrome.tabs.onUpdated.addListener(() => {
 
 // Run once immediately when the service worker first loads
 updateBadge();
+
+// ─── Quick stash: toolbar icon click → one-tap stash current window ────────
+
+/**
+ * quickStashCurrentWindow()
+ *
+ * Called from chrome.action.onClicked. Saves every real web tab in the
+ * current window as a new tabSession, closes those tabs, and lands the
+ * user on the TabNest new tab page so they can see the new session.
+ *
+ * Storage shape MUST stay in sync with normalizeTabSession() in app.js.
+ * If you change one, change both.
+ */
+async function quickStashCurrentWindow(windowId) {
+  if (!Number.isFinite(windowId)) return;
+
+  const tabs = await chrome.tabs.query({ windowId });
+  const realTabs = tabs.filter(t => {
+    const url = (t.url || '').trim();
+    if (!url) return false;
+    if (url.startsWith('chrome://')) return false;
+    if (url.startsWith('chrome-extension://')) return false;
+    if (url.startsWith('about:')) return false;
+    if (url.startsWith('edge://')) return false;
+    if (url.startsWith('brave://')) return false;
+    if (url.startsWith('file://')) return false;
+    if (url.startsWith('devtools://')) return false;
+    return true;
+  });
+
+  if (realTabs.length === 0) return;
+
+  const nextSession = {
+    id: `session-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    sourceType: 'current-window',
+    name: '',
+    pinned: false,
+    tabs: realTabs.map((t, i) => ({
+      url: (t.url || '').trim(),
+      title: (t.title || t.url || '').trim(),
+      windowId: t.windowId,
+      favIconUrl: (t.favIconUrl || '').trim(),
+      order: Number.isFinite(t.index) ? t.index : i,
+    })),
+  };
+
+  const { tabSessions = [] } = await chrome.storage.local.get('tabSessions');
+  const next = Array.isArray(tabSessions) ? tabSessions : [];
+  next.unshift(nextSession);
+  await chrome.storage.local.set({ tabSessions: next });
+
+  const tabIds = realTabs.map(t => t.id).filter(Number.isFinite);
+  if (tabIds.length > 0) {
+    await chrome.tabs.remove(tabIds);
+  }
+
+  // Land on TabNest new tab page so the new session is visible.
+  const newtabUrl = chrome.runtime.getURL('index.html');
+  let existing = null;
+  try {
+    existing = await chrome.tabs.query({ url: newtabUrl, windowId });
+  } catch {
+    existing = [];
+  }
+  if (!existing || existing.length === 0) {
+    try { existing = await chrome.tabs.query({ url: newtabUrl }); } catch { existing = []; }
+  }
+  if (existing && existing[0]) {
+    await chrome.tabs.update(existing[0].id, { active: true });
+    if (existing[0].windowId !== windowId) {
+      try { await chrome.windows.update(existing[0].windowId, { focused: true }); } catch {}
+    }
+  } else {
+    await chrome.tabs.create({ url: newtabUrl });
+  }
+
+  updateBadge();
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab || !Number.isFinite(tab.windowId)) return;
+  quickStashCurrentWindow(tab.windowId).catch(err => {
+    console.warn('[tab-nest] quick stash failed:', err);
+  });
+});
