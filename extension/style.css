@@ -3651,6 +3651,11 @@ body.has-custom-background .window-tab-item {
   background: rgba(179, 90, 90, 0.08);
 }
 
+.chip-pin:hover {
+  color: var(--accent-amber);
+  background: rgba(184, 137, 46, 0.08);
+}
+
 .page-chip.clickable {
   cursor: pointer;
   transition: background 0.15s ease;

@@ -164,6 +164,8 @@ const MESSAGES = {
     quickLinkEdit: '编辑',
     quickLinkDelete: '删除',
     quickLinkModalAddTitle: '新增常用入口',
+    quickLinkModalAddFromTabTitle: '加入常用入口',
+    quickLinkAddFromTabLabel: '常用',
     quickLinkModalEditTitle: '编辑常用入口',
     quickLinkModalClose: '关闭弹窗',
     quickLinkNameLabel: '名称',
@@ -280,6 +282,7 @@ const MESSAGES = {
     sessionDeleteConfirm: title => `要删除“${title}”这个会话吗？`,
     toastSessionSaved: count => `已收纳 ${count} 个标签`,
     toastSessionRestored: count => `已恢复 ${count} 个标签`,
+    toastSessionRestoredWithSkipped: (count, skipped) => `已恢复 ${count} 个标签，跳过 ${skipped} 个本地/内部标签`,
     toastSessionDeleted: '会话已删除',
     toastSessionUpdated: '工作会话已更新',
     toastSessionPinned: '已固定工作会话',
@@ -423,6 +426,8 @@ const MESSAGES = {
     quickLinkEdit: 'Edit',
     quickLinkDelete: 'Delete',
     quickLinkModalAddTitle: 'Add quick link',
+    quickLinkModalAddFromTabTitle: 'Add open tab as quick link',
+    quickLinkAddFromTabLabel: 'Add',
     quickLinkModalEditTitle: 'Edit quick link',
     quickLinkModalClose: 'Close dialog',
     quickLinkNameLabel: 'Name',
@@ -539,6 +544,7 @@ const MESSAGES = {
     sessionDeleteConfirm: title => `Delete the session "${title}"?`,
     toastSessionSaved: count => `Stashed ${count} tab${count !== 1 ? 's' : ''}`,
     toastSessionRestored: count => `Restored ${count} tab${count !== 1 ? 's' : ''}`,
+    toastSessionRestoredWithSkipped: (count, skipped) => `Restored ${count} tab${count !== 1 ? 's' : ''}, skipped ${skipped} local/internal tab${skipped !== 1 ? 's' : ''}`,
     toastSessionDeleted: 'Session deleted',
     toastSessionUpdated: 'Work session updated',
     toastSessionPinned: 'Session pinned',
@@ -2831,7 +2837,7 @@ function openConfirmModal({ title, body, onConfirm, confirmLabel = '', eyebrow =
   backdrop.style.display = 'flex';
 }
 
-function openQuickLinkModal(linkId = '') {
+function openQuickLinkModal(linkId = '', prefill = {}) {
   const backdrop = document.getElementById('quickLinkModalBackdrop');
   const idInput = document.getElementById('quickLinkId');
   const nameInput = document.getElementById('quickLinkNameInput');
@@ -2841,11 +2847,14 @@ function openQuickLinkModal(linkId = '') {
   if (!backdrop || !idInput || !nameInput || !urlInput) return;
 
   idInput.value = link?.id || '';
-  nameInput.value = link?.title || '';
-  urlInput.value = link?.url || '';
+  nameInput.value = typeof prefill.title === 'string' && prefill.title ? prefill.title : (link?.title || '');
+  urlInput.value = typeof prefill.url === 'string' && prefill.url ? prefill.url : (link?.url || '');
   backdrop.style.display = 'flex';
-  syncQuickLinkModalText();
-  setTimeout(() => nameInput.focus(), 0);
+  syncQuickLinkModalText({ title: nameInput.value, url: urlInput.value });
+  setTimeout(() => {
+    if (!linkId && !prefill.title) nameInput.focus();
+    else if (!linkId) urlInput.focus();
+  }, 0);
 }
 
 async function openQuickLink(url) {
@@ -3177,11 +3186,21 @@ function isRealWebTab(tab) {
   const url = getResolvedTabUrl(tab);
   return (
     !!url &&
-    !url.startsWith('chrome://') &&
-    !url.startsWith('chrome-extension://') &&
-    !url.startsWith('about:') &&
-    !url.startsWith('edge://') &&
-    !url.startsWith('brave://')
+    !isBlockedSessionRestoreUrl(url)
+  );
+}
+
+function isBlockedSessionRestoreUrl(url) {
+  const normalizedUrl = String(url || '').trim();
+  if (!normalizedUrl) return true;
+  return (
+    normalizedUrl.startsWith('chrome://') ||
+    normalizedUrl.startsWith('chrome-extension://') ||
+    normalizedUrl.startsWith('about:') ||
+    normalizedUrl.startsWith('edge://') ||
+    normalizedUrl.startsWith('brave://') ||
+    normalizedUrl.startsWith('file://') ||
+    normalizedUrl.startsWith('devtools://')
   );
 }
 
@@ -3346,7 +3365,10 @@ async function stashWindowsAsSessions(tabs) {
 }
 
 async function restoreTabsIntoNewWindow(tabs, focused = false) {
-  const urls = tabs.map(tab => tab.url).filter(Boolean);
+  const urls = tabs
+    .map(tab => tab.url)
+    .filter(Boolean)
+    .filter(url => !isBlockedSessionRestoreUrl(url));
   if (urls.length === 0) return null;
   return chrome.windows.create({ url: urls, focused });
 }
@@ -3357,14 +3379,27 @@ async function restoreSession(sessionId) {
   if (!session) throw new Error('session-not-found');
 
   const windowGroups = buildSessionWindowGroups(session.tabs);
+  const restoreResults = [];
   for (let index = 0; index < windowGroups.length; index += 1) {
     const group = windowGroups[index];
-    await restoreTabsIntoNewWindow(group.tabs, index === 0);
+    const restoredTabs = await restoreTabsIntoNewWindow(group.tabs, index === 0);
+    restoreResults.push({
+      requested: group.tabs.length,
+      restored: restoredTabs?.length || 0,
+      skipped: group.tabs.filter(tab => isBlockedSessionRestoreUrl(tab.url)).length,
+    });
   }
+
+  const restoredCount = restoreResults.reduce((sum, item) => sum + item.restored, 0);
+  const skippedCount = restoreResults.reduce((sum, item) => sum + item.skipped, 0);
 
   await saveTabSessions(session.pinned ? sessions : sessions.filter(item => item.id !== sessionId));
   await fetchOpenTabs();
-  return session;
+  return {
+    ...session,
+    restoredCount,
+    skippedCount,
+  };
 }
 
 async function restoreSessionTab(sessionId, url) {
@@ -3891,6 +3926,7 @@ const ICONS = {
   close:   `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`,
   archive: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>`,
   focus:   `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>`,
+  pin:     `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.45.359 2.83.988 4.061L19 21l-1.5-6.01A4.482 4.482 0 0 0 16.5 12Zm0 0v4.5" /></svg>`,
 };
 
 
@@ -4003,6 +4039,9 @@ function renderWindowCard(group) {
         <div class="window-tab-actions">
           <button class="window-tab-action" data-action="defer-single-tab-id" data-tab-id="${tab.id}" title="${t('saveForLaterTitle')}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.9" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+          </button>
+          <button class="window-tab-action window-tab-action-pin" data-action="add-quick-link-from-tab-id" data-tab-id="${tab.id}" title="${t('quickLinkModalAddFromTabTitle')}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.45.359 2.83.988 4.061L19 21l-1.5-6.01A4.482 4.482 0 0 0 16.5 12Zm0 0v4.5" /></svg>
           </button>
           <button class="window-tab-action" data-action="close-single-tab-id" data-tab-id="${tab.id}" title="${t('closeThisTabTitle')}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -4125,6 +4164,9 @@ function renderDomainCard(group) {
       <div class="chip-actions">
         <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="${t('saveForLaterTitle')}">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+        </button>
+        <button class="chip-action chip-pin" data-action="open-quick-link-modal" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="${t('quickLinkModalAddFromTabTitle')}">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.45.359 2.83.988 4.061L19 21l-1.5-6.01A4.482 4.482 0 0 0 16.5 12Zm0 0v4.5" /></svg>
         </button>
         <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="${t('closeThisTabTitle')}">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -4878,7 +4920,11 @@ document.addEventListener('click', async (e) => {
       setSessionPanelOpen(false);
       await markSessionsViewed();
       await refreshDashboardAfterSessionChange(360);
-      showToast(t('toastSessionRestored', session.tabs.length));
+      if (session.skippedCount > 0) {
+        showToast(t('toastSessionRestoredWithSkipped', session.restoredCount, session.skippedCount));
+      } else {
+        showToast(t('toastSessionRestored', session.restoredCount));
+      }
     } catch (err) {
       console.warn('[tab-out] Could not restore session:', err);
       showToast(t('toastSessionRestoreFailed'));
@@ -4956,7 +5002,28 @@ document.addEventListener('click', async (e) => {
     if (hadOpenQuickLinkMenu) {
       await renderQuickLinksSection();
     }
-    openQuickLinkModal(actionEl.dataset.quickLinkId || '');
+    openQuickLinkModal(actionEl.dataset.quickLinkId || '', {
+      title: actionEl.dataset.tabTitle || '',
+      url: actionEl.dataset.tabUrl || '',
+    });
+    return;
+  }
+
+  if (action === 'add-quick-link-from-tab-id') {
+    e.preventDefault();
+    e.stopPropagation();
+    const tabId = Number(actionEl.dataset.tabId);
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find(item => item.id === tabId);
+    if (!tab?.url) return;
+    const safeTitle = String(tab.title || tab.url).trim();
+    const safeUrl = String(tab.url).trim();
+    const existing = quickLinks.find(item => item.url === safeUrl);
+    if (existing) {
+      openQuickLinkModal(existing.id);
+      return;
+    }
+    openQuickLinkModal('', { title: safeTitle, url: safeUrl });
     return;
   }
 
