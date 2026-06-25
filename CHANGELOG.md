@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2026-06-25 16:21
 
 ### Added
-- New "Save as tab group" action on the sessions panel that packs every existing session into one new session tagged `sourceType: "tab-group"` (unique URLs only, blocked local/internal tabs filtered out). Tab group sessions get a blue "标签组 / Tab group" badge and stay separate from pinned sessions. The button is disabled until at least 2 sessions exist.
+- New "Save as tab group" action on the sessions panel that packs every existing session into one new session tagged `sourceType: "tab-group"` (unique URLs only, blocked local/internal tabs filtered out). Tab group sessions get a blue "标签组 / Tab group" badge and stay separate from pinned sessions.
+
+### Changed
+- Lowered the pack button's gate from "at least 2 sessions" to "at least 1 session" so a single session (e.g. the most recent one) can be saved straight into a tab group, matching OneTab-style "save all tabs". The pack button now always has a blue tint to set it apart from the neutral close button.
 
 
 ## [1.2.4] - 2026-06-25 16:10

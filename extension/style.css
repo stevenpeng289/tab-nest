@@ -4819,8 +4819,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   height: 34px;
   border: none;
   border-radius: 50%;
-  background: rgba(26, 22, 19, 0.05);
-  color: var(--muted);
+  background: rgba(58, 110, 165, 0.1);
+  color: rgba(58, 110, 165, 0.95);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4842,6 +4842,16 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .session-panel-pack svg {
   width: 16px;
   height: 16px;
+}
+
+body.theme-dark .session-panel-pack {
+  background: rgba(122, 165, 213, 0.14);
+  color: #8db6e0;
+}
+
+body.theme-dark .session-panel-pack:hover:not(:disabled) {
+  background: rgba(122, 165, 213, 0.22);
+  color: #c8def0;
 }
 
 .settings-modal-backdrop {

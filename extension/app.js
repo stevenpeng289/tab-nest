@@ -256,7 +256,7 @@ const MESSAGES = {
     sessionRecent: '最近会话',
     sessionPanelClose: '关闭收纳面板',
     sessionPanelPackButton: '保存标签组',
-    sessionPanelPackDisabledHint: '至少 2 个会话才能打包为标签组',
+    sessionPanelPackDisabledHint: '暂无会话可打包',
     stashCurrentWindow: '当前窗口',
     stashAllWindows: '全部窗口',
     sessionSourceCurrentWindow: '当前窗口',
@@ -292,7 +292,7 @@ const MESSAGES = {
     toastSessionPinned: '已固定工作会话',
     toastSessionUnpinned: '已取消固定工作会话',
     toastSessionTabGroupPacked: (tabs, sessions) => `已把 ${sessions} 个会话打包为标签组，共 ${tabs} 个标签`,
-    toastSessionTabGroupNeedsMore: '至少需要 2 个会话才能打包',
+
     toastSessionTabGroupEmpty: '没有可打包的标签',
     toastSessionInvalidName: '请输入工作会话名称',
     toastSessionNothingToSave: '没有可收纳的标签',
@@ -525,7 +525,7 @@ const MESSAGES = {
     sessionRecent: 'Recent sessions',
     sessionPanelClose: 'Close stash panel',
     sessionPanelPackButton: 'Save as tab group',
-    sessionPanelPackDisabledHint: 'Need at least 2 sessions to pack into a tab group',
+    sessionPanelPackDisabledHint: 'No sessions available to pack',
     stashCurrentWindow: 'Current window',
     stashAllWindows: 'All windows',
     sessionSourceCurrentWindow: 'Current window',
@@ -561,7 +561,7 @@ const MESSAGES = {
     toastSessionPinned: 'Session pinned',
     toastSessionUnpinned: 'Session unpinned',
     toastSessionTabGroupPacked: (tabs, sessions) => `Packed ${sessions} sessions into a tab group with ${tabs} tab${tabs !== 1 ? 's' : ''}`,
-    toastSessionTabGroupNeedsMore: 'Need at least 2 sessions to pack',
+
     toastSessionTabGroupEmpty: 'No packable tabs left',
     toastSessionInvalidName: 'Enter a session name',
     toastSessionNothingToSave: 'No tabs to stash',
@@ -3339,8 +3339,8 @@ async function stashTabsAsSession(tabs, sourceType) {
 
 async function packAllSessionsAsTabGroup() {
   const sessions = await getTabSessions();
-  if (sessions.length < 2) {
-    showToast(t('toastSessionTabGroupNeedsMore'));
+  if (sessions.length < 1) {
+    showToast(t('toastSessionTabGroupEmpty'));
     return null;
   }
 
@@ -4404,7 +4404,7 @@ async function renderSessionsFloatingPanel() {
     trigger.hidden = !hasSessions;
     rail.hidden = !canStash && !hasSessions;
     if (packBtn instanceof HTMLButtonElement) {
-      const canPack = sessions.length >= 2;
+      const canPack = sessions.length >= 1;
       packBtn.disabled = !canPack;
       packBtn.title = canPack ? t('sessionPanelPackButton') : t('sessionPanelPackDisabledHint');
     }
@@ -5081,8 +5081,8 @@ document.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     const sessions = await getTabSessions();
-    if (sessions.length < 2) {
-      showToast(t('toastSessionTabGroupNeedsMore'));
+    if (sessions.length < 1) {
+      showToast(t('toastSessionTabGroupEmpty'));
       return;
     }
     const nextSession = await packAllSessionsAsTabGroup();
