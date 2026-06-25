@@ -3364,13 +3364,20 @@ async function stashWindowsAsSessions(tabs) {
   return nextSessions;
 }
 
-async function restoreTabsIntoNewWindow(tabs, focused = false) {
-  const urls = tabs
-    .map(tab => tab.url)
-    .filter(Boolean)
-    .filter(url => !isBlockedSessionRestoreUrl(url));
-  if (urls.length === 0) return null;
-  return chrome.windows.create({ url: urls, focused });
+async function restoreTabsIntoCurrentWindow(tabs) {
+  const currentWindow = await chrome.windows.getCurrent();
+  const created = [];
+  for (let index = 0; index < tabs.length; index += 1) {
+    const tab = tabs[index];
+    if (!tab?.url || isBlockedSessionRestoreUrl(tab.url)) continue;
+    const opened = await chrome.tabs.create({
+      windowId: currentWindow.id,
+      url: tab.url,
+      active: index === 0,
+    });
+    if (opened) created.push(opened);
+  }
+  return created;
 }
 
 async function restoreSession(sessionId) {
@@ -3382,10 +3389,10 @@ async function restoreSession(sessionId) {
   const restoreResults = [];
   for (let index = 0; index < windowGroups.length; index += 1) {
     const group = windowGroups[index];
-    const restoredTabs = await restoreTabsIntoNewWindow(group.tabs, index === 0);
+    const restoredTabs = await restoreTabsIntoCurrentWindow(group.tabs);
     restoreResults.push({
       requested: group.tabs.length,
-      restored: restoredTabs?.length || 0,
+      restored: restoredTabs.length,
       skipped: group.tabs.filter(tab => isBlockedSessionRestoreUrl(tab.url)).length,
     });
   }
