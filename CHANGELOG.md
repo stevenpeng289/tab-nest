@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-25 16:21
+
+### Added
+- New "Save as tab group" action on the sessions panel that packs every existing session into one new session tagged `sourceType: "tab-group"` (unique URLs only, blocked local/internal tabs filtered out). Tab group sessions get a blue "标签组 / Tab group" badge and stay separate from pinned sessions. The button is disabled until at least 2 sessions exist.
+
+
 ## [1.2.4] - 2026-06-25 16:10
 
 ### Changed

@@ -255,6 +255,8 @@ const MESSAGES = {
     sessionFabLabel: '收纳',
     sessionRecent: '最近会话',
     sessionPanelClose: '关闭收纳面板',
+    sessionPanelPackButton: '保存标签组',
+    sessionPanelPackDisabledHint: '至少 2 个会话才能打包为标签组',
     stashCurrentWindow: '当前窗口',
     stashAllWindows: '全部窗口',
     sessionSourceCurrentWindow: '当前窗口',
@@ -267,6 +269,8 @@ const MESSAGES = {
     sessionUnpin: '取消固定',
     sessionPinnedBadge: '固定会话',
     sessionTemporaryBadge: '临时会话',
+    sessionTabGroupBadge: '标签组',
+    sessionTabGroupDefaultName: baseName => `标签组 · ${baseName}`,
     sessionModalCreateTitle: '保存工作会话',
     sessionModalEditTitle: '编辑工作会话',
     sessionNameLabel: '会话名称',
@@ -287,6 +291,9 @@ const MESSAGES = {
     toastSessionUpdated: '工作会话已更新',
     toastSessionPinned: '已固定工作会话',
     toastSessionUnpinned: '已取消固定工作会话',
+    toastSessionTabGroupPacked: (tabs, sessions) => `已把 ${sessions} 个会话打包为标签组，共 ${tabs} 个标签`,
+    toastSessionTabGroupNeedsMore: '至少需要 2 个会话才能打包',
+    toastSessionTabGroupEmpty: '没有可打包的标签',
     toastSessionInvalidName: '请输入工作会话名称',
     toastSessionNothingToSave: '没有可收纳的标签',
     toastSessionSaveFailed: '收纳会话失败',
@@ -517,6 +524,8 @@ const MESSAGES = {
     sessionFabLabel: 'Stash',
     sessionRecent: 'Recent sessions',
     sessionPanelClose: 'Close stash panel',
+    sessionPanelPackButton: 'Save as tab group',
+    sessionPanelPackDisabledHint: 'Need at least 2 sessions to pack into a tab group',
     stashCurrentWindow: 'Current window',
     stashAllWindows: 'All windows',
     sessionSourceCurrentWindow: 'Current window',
@@ -529,6 +538,8 @@ const MESSAGES = {
     sessionUnpin: 'Unpin',
     sessionPinnedBadge: 'Pinned',
     sessionTemporaryBadge: 'Temporary',
+    sessionTabGroupBadge: 'Tab group',
+    sessionTabGroupDefaultName: baseName => `Tab group · ${baseName}`,
     sessionModalCreateTitle: 'Save work session',
     sessionModalEditTitle: 'Edit work session',
     sessionNameLabel: 'Session name',
@@ -549,6 +560,9 @@ const MESSAGES = {
     toastSessionUpdated: 'Work session updated',
     toastSessionPinned: 'Session pinned',
     toastSessionUnpinned: 'Session unpinned',
+    toastSessionTabGroupPacked: (tabs, sessions) => `Packed ${sessions} sessions into a tab group with ${tabs} tab${tabs !== 1 ? 's' : ''}`,
+    toastSessionTabGroupNeedsMore: 'Need at least 2 sessions to pack',
+    toastSessionTabGroupEmpty: 'No packable tabs left',
     toastSessionInvalidName: 'Enter a session name',
     toastSessionNothingToSave: 'No tabs to stash',
     toastSessionSaveFailed: 'Failed to stash tabs',
@@ -1520,6 +1534,11 @@ function applyStaticText() {
   if (sessionPanelCloseBtn) {
     sessionPanelCloseBtn.title = t('sessionPanelClose');
     sessionPanelCloseBtn.setAttribute('aria-label', t('sessionPanelClose'));
+  }
+  const sessionPanelPackBtn = document.getElementById('sessionPanelPackBtn');
+  if (sessionPanelPackBtn instanceof HTMLButtonElement) {
+    sessionPanelPackBtn.title = t('sessionPanelPackButton');
+    sessionPanelPackBtn.setAttribute('aria-label', t('sessionPanelPackButton'));
   }
   if (stashCurrentWindowBtn) {
     stashCurrentWindowBtn.innerHTML = `
@@ -3218,7 +3237,7 @@ function normalizeTabSession(session, index = 0) {
   const tabs = Array.isArray(session.tabs)
     ? session.tabs.map((tab, tabIndex) => normalizeSessionTab(tab, tabIndex)).filter(tab => tab.url)
     : [];
-  const sourceType = ['all-windows', 'window-session'].includes(session.sourceType)
+  const sourceType = ['all-windows', 'window-session', 'tab-group'].includes(session.sourceType)
     ? session.sourceType
     : 'current-window';
 
@@ -3315,6 +3334,53 @@ async function stashTabsAsSession(tabs, sourceType) {
   }
 
   await fetchOpenTabs();
+  return nextSession;
+}
+
+async function packAllSessionsAsTabGroup() {
+  const sessions = await getTabSessions();
+  if (sessions.length < 2) {
+    showToast(t('toastSessionTabGroupNeedsMore'));
+    return null;
+  }
+
+  const seen = new Set();
+  const mergedTabs = [];
+  for (const session of sessions) {
+    for (const tab of session.tabs || []) {
+      const url = String(tab.url || '').trim();
+      if (!url || isBlockedSessionRestoreUrl(url)) continue;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      mergedTabs.push({
+        url,
+        title: String(tab.title || url).trim(),
+        favIconUrl: String(tab.favIconUrl || '').trim(),
+        windowId: Number.isFinite(tab.windowId) ? tab.windowId : 0,
+        order: mergedTabs.length,
+      });
+    }
+  }
+
+  if (mergedTabs.length === 0) {
+    showToast(t('toastSessionTabGroupEmpty'));
+    return null;
+  }
+
+  const latest = sessions[0];
+  const baseName = String(latest?.name || getSessionTitle(latest) || '').trim();
+  const defaultName = t('sessionTabGroupDefaultName', baseName || new Date().toLocaleString());
+
+  const nextSession = normalizeTabSession({
+    id: `tabgroup-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    sourceType: 'tab-group',
+    name: defaultName,
+    pinned: false,
+    tabs: mergedTabs,
+  }, 0);
+
+  await saveTabSessions([nextSession, ...sessions]);
   return nextSession;
 }
 
@@ -4260,7 +4326,11 @@ function renderSessionCard(session) {
   const meta = `${t('sessionTabsCount', session.tabs.length)} · ${t('sessionWindowsCount', getSessionWindowCount(session))} · ${timeAgo(session.createdAt)}`;
   const domainSummary = escapeHtml(getSessionTopDomains(session, 3).join(' · '));
   const sessionId = escapeHtml(session.id);
-  const statusLabel = session.pinned ? t('sessionPinnedBadge') : t('sessionTemporaryBadge');
+  const isTabGroup = session.sourceType === 'tab-group';
+  const statusModifier = session.pinned ? ' is-pinned' : isTabGroup ? ' is-tab-group' : '';
+  const statusLabel = isTabGroup
+    ? t('sessionTabGroupBadge')
+    : session.pinned ? t('sessionPinnedBadge') : t('sessionTemporaryBadge');
   const previewTabs = session.tabs.slice(0, 4).map(tab => {
     const faviconUrl = escapeHtml(getFaviconSource(tab.url, tab.title, 32, tab.favIconUrl));
     const safeTitle = escapeHtml(tab.title || tab.url);
@@ -4279,11 +4349,11 @@ function renderSessionCard(session) {
   const moreCount = Math.max(0, session.tabs.length - 4);
 
   return `
-    <article class="session-card${session.pinned ? ' is-pinned' : ''}" data-session-id="${sessionId}">
+    <article class="session-card${statusModifier}" data-session-id="${sessionId}">
       <div class="session-card-header">
         <div>
           <div class="session-card-status-row">
-            <span class="session-card-status-badge${session.pinned ? ' is-pinned' : ''}">${escapeHtml(statusLabel)}</span>
+            <span class="session-card-status-badge${statusModifier}">${escapeHtml(statusLabel)}</span>
           </div>
           <div class="session-card-title">${sessionTitle}</div>
           <div class="session-card-meta">${meta}</div>
@@ -4321,6 +4391,7 @@ async function renderSessionsFloatingPanel() {
   const badgeEl = document.getElementById('sessionFabCount');
   const listEl = document.getElementById('sessionsList');
   const trigger = document.getElementById('sessionFabTrigger');
+  const packBtn = document.getElementById('sessionPanelPackBtn');
   if (!tools || !rail || !stashTrigger || !countEl || !badgeEl || !listEl || !trigger) return;
 
   try {
@@ -4332,6 +4403,11 @@ async function renderSessionsFloatingPanel() {
     stashTrigger.hidden = !canStash;
     trigger.hidden = !hasSessions;
     rail.hidden = !canStash && !hasSessions;
+    if (packBtn instanceof HTMLButtonElement) {
+      const canPack = sessions.length >= 2;
+      packBtn.disabled = !canPack;
+      packBtn.title = canPack ? t('sessionPanelPackButton') : t('sessionPanelPackDisabledHint');
+    }
 
     if (!canStash) {
       setStashMenuOpen(false);
@@ -4998,6 +5074,21 @@ document.addEventListener('click', async (e) => {
         showToast(t('toastSessionDeleted'));
       },
     });
+    return;
+  }
+
+  if (action === 'pack-tab-group') {
+    e.preventDefault();
+    e.stopPropagation();
+    const sessions = await getTabSessions();
+    if (sessions.length < 2) {
+      showToast(t('toastSessionTabGroupNeedsMore'));
+      return;
+    }
+    const nextSession = await packAllSessionsAsTabGroup();
+    if (!nextSession) return;
+    await renderDashboard();
+    showToast(t('toastSessionTabGroupPacked', nextSession.tabs.length, sessions.length));
     return;
   }
 

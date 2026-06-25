@@ -4807,6 +4807,43 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   height: 16px;
 }
 
+.session-panel-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.session-panel-pack {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(26, 22, 19, 0.05);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.session-panel-pack:hover:not(:disabled) {
+  background: rgba(58, 110, 165, 0.12);
+  color: rgba(58, 110, 165, 0.98);
+}
+
+.session-panel-pack:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.session-panel-pack svg {
+  width: 16px;
+  height: 16px;
+}
+
 .settings-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -5307,6 +5344,13 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
     inset 0 1px 1px rgba(255, 255, 255, 0.82);
 }
 
+.session-card.is-tab-group {
+  border-color: rgba(58, 110, 165, 0.18);
+  box-shadow:
+    0 16px 30px rgba(58, 110, 165, 0.06),
+    inset 0 1px 1px rgba(255, 255, 255, 0.82);
+}
+
 .session-card-status-row {
   display: flex;
   align-items: center;
@@ -5330,6 +5374,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .session-card-status-badge.is-pinned {
   color: rgba(161, 81, 37, 0.98);
   background: rgba(200, 113, 58, 0.12);
+}
+
+.session-card-status-badge.is-tab-group {
+  color: rgba(58, 110, 165, 0.98);
+  background: rgba(58, 110, 165, 0.12);
 }
 
 .session-card-tools {
@@ -5607,6 +5656,19 @@ body.theme-dark .session-card-status-badge {
 body.theme-dark .session-card-status-badge.is-pinned {
   color: #f4b782;
   background: rgba(236, 168, 118, 0.12);
+}
+
+body.theme-dark .session-card.is-tab-group {
+  border-color: rgba(122, 165, 213, 0.22);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(122, 165, 213, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.theme-dark .session-card-status-badge.is-tab-group {
+  color: #8db6e0;
+  background: rgba(122, 165, 213, 0.12);
 }
 
 body.theme-dark .session-card-tool {
