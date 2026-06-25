@@ -1931,13 +1931,30 @@ async function searchBookmarksInFolderTree(folderId, folderPath = '') {
   }
 }
 
+function setCustomBackgroundStyle(imageDataUrl) {
+  let styleEl = document.getElementById('customBackgroundStyle');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'customBackgroundStyle';
+    document.head.appendChild(styleEl);
+  }
+  if (!imageDataUrl) {
+    styleEl.textContent = ':root{--custom-background-image:none;}';
+    return;
+  }
+  // ponytail: escape any closing </style> sequence that could break out of the style block.
+  const safeUrl = imageDataUrl.replace(/<\/style/gi, '<\\/style');
+  styleEl.textContent = `:root{--custom-background-image:url("${safeUrl}");}`;
+}
+
 function applyBackgroundSelection({ imageDataUrl = '' } = {}) {
   customBackgroundImage = typeof imageDataUrl === 'string' ? imageDataUrl : '';
   updateSolidSurfacePalette();
-  document.body.style.setProperty(
-    '--custom-background-image',
-    customBackgroundImage ? `url("${customBackgroundImage}")` : 'none'
-  );
+  // ponytail: data URL goes into a <style> element, NOT document.body.style.setProperty.
+  // Inline style attributes have a ~1-2MB cap in Chrome; a 3.5MB data URL gets silently
+  // dropped, so --custom-background-image never resolves in body::before. The <style>
+  // element content has a much higher ceiling.
+  setCustomBackgroundStyle(customBackgroundImage);
   document.body.style.setProperty(
     '--custom-background-color',
     getEffectiveBackgroundColor()
@@ -1960,7 +1977,15 @@ async function loadBackgroundPreference() {
 }
 
 async function saveBackgroundPreference(imageDataUrl) {
-  await chrome.storage.local.set({ [BACKGROUND_IMAGE_STORAGE_KEY]: imageDataUrl });
+  try {
+    await chrome.storage.local.set({ [BACKGROUND_IMAGE_STORAGE_KEY]: imageDataUrl });
+  } catch (err) {
+    console.error('[tab-out] chrome.storage.local.set failed for background image:', {
+      message: err && err.message,
+      dataUrlLength: imageDataUrl && imageDataUrl.length
+    });
+    throw err;
+  }
   await chrome.storage.local.remove(BACKGROUND_COLOR_STORAGE_KEY);
   applyBackgroundSelection({ imageDataUrl });
 }
@@ -2000,14 +2025,21 @@ function exportBackgroundCanvas(canvas) {
     ['image/jpeg', 0.7],
   ];
 
-  let fallback = '';
+  let bestDataUrl = '';
+  let bestSize = Infinity;
   for (const [type, quality] of attempts) {
     const dataUrl = canvas.toDataURL(type, quality);
-    fallback = dataUrl;
     if (dataUrl.length <= MAX_BACKGROUND_STORAGE_LENGTH) return dataUrl;
+    if (dataUrl.length < bestSize) {
+      bestDataUrl = dataUrl;
+      bestSize = dataUrl.length;
+    }
   }
 
-  return fallback;
+  // ponytail: all attempts exceeded the storage cap; return the smallest so we
+  // come closest to fitting. Caller (prepareBackgroundImage) decides whether to
+  // retry with a smaller edge length or surface background-too-large.
+  return bestDataUrl;
 }
 
 async function prepareBackgroundImage(file) {
@@ -2045,7 +2077,12 @@ async function prepareBackgroundImage(file) {
     }
 
     if (bestDataUrl.length > MAX_BACKGROUND_STORAGE_LENGTH) {
-      throw new Error('background-too-large');
+      const err = new Error('background-too-large');
+      err.fileSize = file.size;
+      err.fileType = file.type;
+      err.finalDataUrlSize = bestDataUrl.length;
+      err.maxAllowed = MAX_BACKGROUND_STORAGE_LENGTH;
+      throw err;
     }
 
     return bestDataUrl;
@@ -6227,9 +6264,23 @@ document.getElementById('backgroundImageInput')?.addEventListener('change', asyn
   try {
     const imageDataUrl = await prepareBackgroundImage(file);
     await saveBackgroundPreference(imageDataUrl);
+    console.info('[tab-out] background image updated, data url length:', imageDataUrl.length);
     showToast(t('toastBackgroundUpdated'));
   } catch (err) {
-    console.warn('[tab-out] Could not update background:', err);
+    console.error('[tab-out] Could not update background:', {
+      message: err && err.message,
+      fileSize: file && file.size,
+      fileType: file && file.type,
+      fileName: file && file.name,
+      detail: err && (err.fileSize || err.finalDataUrlSize)
+        ? {
+            fileSize: err.fileSize,
+            fileType: err.fileType,
+            finalDataUrlSize: err.finalDataUrlSize,
+            maxAllowed: err.maxAllowed
+          }
+        : undefined
+    });
     showToast(t('toastBackgroundFailed'));
   } finally {
     input.value = '';

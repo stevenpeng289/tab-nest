@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-06-25 18:00
+
+### Fixed
+- Custom background image silently failed to render even though storage write succeeded and the "更换图片 / 恢复默认" buttons updated. Root cause: `applyBackgroundSelection` set `--custom-background-image` via `document.body.style.setProperty`, but Chrome caps inline `style` attributes at ~1-2MB; a 3.5MB data URL was rejected silently, so `body::before` never saw the value. The data URL is now injected through a dedicated `<style id="customBackgroundStyle">` element, which has a much higher ceiling. The bug surfaced as "I picked an image and nothing changed" while the storage and modal UI both looked correct.
+
+### Changed
+- `exportBackgroundCanvas` no longer returns the largest (last) candidate when every encoding attempt exceeds `MAX_BACKGROUND_STORAGE_LENGTH`. It now returns the smallest candidate, so oversized images come as close to fitting as possible before `prepareBackgroundImage` surfaces `background-too-large`.
+
+### Added
+- `console.error` diagnostics in the background image change handler and `saveBackgroundPreference` so the next time something fails, the console shows the file size, MIME type, final data URL size, and storage error reason instead of a bare `console.warn`. The success path also logs the data URL length.
+
 ## [1.5.0] - 2026-06-25 17:31
 
 ### Added
