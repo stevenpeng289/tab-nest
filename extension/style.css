@@ -1178,7 +1178,7 @@ body.theme-dark.has-custom-background .quick-link-modal {
 .tab-groups-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
   margin-bottom: 12px;
 }
@@ -3092,6 +3092,87 @@ body.theme-dark.has-custom-background .quick-link-modal {
   margin-left: auto;
 }
 
+
+.section-pack-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(58, 110, 165, 0.28);
+  background: rgba(58, 110, 165, 0.1);
+  color: rgba(58, 110, 165, 0.95);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.section-pack-btn-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.section-pack-btn:hover:not(:disabled) {
+  background: rgba(58, 110, 165, 0.14);
+  color: rgba(58, 110, 165, 0.98);
+  border-color: rgba(58, 110, 165, 0.38);
+}
+
+.section-pack-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.section-pack-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+body.theme-dark .section-pack-btn {
+  background: rgba(122, 165, 213, 0.14);
+  color: #8db6e0;
+  border-color: rgba(122, 165, 213, 0.28);
+}
+
+body.theme-dark .section-pack-btn:hover:not(:disabled) {
+  background: rgba(122, 165, 213, 0.22);
+  color: #c8def0;
+  border-color: rgba(122, 165, 213, 0.38);
+}
+
+.section-pack-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(6px);
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--glass-border);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 14px 28px var(--shadow);
+  z-index: 100;
+}
+
+.section-pack-btn:hover[data-tooltip]::after,
+.section-pack-btn:focus-visible[data-tooltip]::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+
 .view-switcher {
   display: inline-flex;
   align-items: center;
@@ -3949,6 +4030,39 @@ body.has-custom-background .window-tab-item {
 .confirm-modal-actions .action-btn {
   min-width: 104px;
   justify-content: center;
+}
+
+body.theme-dark .confirm-modal--preview {
+  background: linear-gradient(180deg, rgba(18, 24, 31, 0.96), rgba(16, 22, 29, 0.94));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.confirm-modal--preview .background-preview-stage {
+  position: relative;
+  height: 220px;
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: var(--custom-background-color);
+  background-image:
+    linear-gradient(180deg, rgba(248, 245, 240, 0.4), rgba(248, 245, 240, 0.65)),
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.2), transparent 48%);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.confirm-modal--preview .background-preview-stage img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.confirm-modal--preview .background-preview-stage.is-loaded img {
+  opacity: 1;
 }
 
 .confirm-modal-actions .action-btn.danger {

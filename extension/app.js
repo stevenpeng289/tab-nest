@@ -42,7 +42,6 @@ let currentLanguage = 'zh-CN';
 let currentTheme = 'light';
 let customBackgroundImage = '';
 let lastRealTabCount = 0;
-let isSessionPanelOpen = false;
 let isStashMenuOpen = false;
 let isSettingsModalOpen = false;
 let currentSettingsPanel = 'appearance';
@@ -76,7 +75,6 @@ const BOOKMARK_BOARD_COLLAPSED_STORAGE_KEY = 'bookmarkBoardCollapsed';
 const BOOKMARK_BOARD_DISPLAY_LIMIT_STORAGE_KEY = 'bookmarkBoardDisplayLimit';
 const BOOKMARK_COLLECTIONS_STORAGE_KEY = 'bookmarkCollections';
 const OPEN_TABS_VIEW_STORAGE_KEY = 'openTabsView';
-const SESSIONS_VIEWED_COUNT_KEY = 'sessionsViewedCount'; // New storage key
 const BOOKMARK_BOARD_MAX_ENTRIES = 4;
 const DEFAULT_BOOKMARK_BOARD_DISPLAY_LIMIT = 2;
 const MAX_BACKGROUND_EDGE = 2200;
@@ -178,6 +176,9 @@ const MESSAGES = {
     backgroundImageUpload: '上传图片',
     backgroundImageChange: '更换图片',
     backgroundImageClear: '恢复默认',
+    backgroundPreviewTitle: '预览背景',
+    backgroundPreviewHint: '这是你选择图片后的实际效果，确认要使用吗？',
+    backgroundPreviewConfirm: '使用这张背景',
     settingsTitle: '偏好设置',
     settingsAppearance: '外观',
     settingsLinks: '快捷入口',
@@ -253,12 +254,13 @@ const MESSAGES = {
     toastBackgroundUpdated: '背景已更新',
     toastBackgroundCleared: '已恢复默认背景',
     toastBackgroundFailed: '背景设置失败，请换一张图片试试',
-    sessionsTitle: '最近会话',
-    sessionsEmpty: '记录并快速恢复之前的窗口标签。',
-    sessionFabLabel: '收纳',
+    workSessionsTitle: '工作会话',
+    workSessionsSubtitle: '记录并快速恢复之前的窗口标签。',
+    workSessionsEmpty: '暂无已保存的会话。',
     sessionRecent: '最近会话',
     sessionPanelClose: '关闭收纳面板',
     sessionPanelPackButton: '保存标签组',
+    openTabsPackButton: '保存当前标签组',
     sessionPanelPackDisabledHint: '暂无会话可打包',
     stashCurrentWindow: '当前窗口',
     stashAllWindows: '全部窗口',
@@ -450,6 +452,9 @@ const MESSAGES = {
     backgroundImageUpload: 'Upload image',
     backgroundImageChange: 'Change image',
     backgroundImageClear: 'Reset default',
+    backgroundPreviewTitle: 'Preview background',
+    backgroundPreviewHint: 'This is how the background will look. Confirm to apply it?',
+    backgroundPreviewConfirm: 'Use this background',
     settingsTitle: 'Settings',
     settingsAppearance: 'Appearance',
     settingsLinks: 'Quick Links',
@@ -525,12 +530,13 @@ const MESSAGES = {
     toastBackgroundUpdated: 'Background updated',
     toastBackgroundCleared: 'Background reset',
     toastBackgroundFailed: 'Failed to update background',
-    sessionsTitle: 'Sessions',
-    sessionsEmpty: 'Stash the current window or all windows into a session, then restore the whole set later.',
-    sessionFabLabel: 'Stash',
+    workSessionsTitle: 'Work sessions',
+    workSessionsSubtitle: 'Record and quickly restore previous window tabs.',
+    workSessionsEmpty: 'No saved sessions yet.',
     sessionRecent: 'Recent sessions',
     sessionPanelClose: 'Close stash panel',
     sessionPanelPackButton: 'Save as tab group',
+    openTabsPackButton: 'Save current tabs as tab group',
     sessionPanelPackDisabledHint: 'No sessions available to pack',
     stashCurrentWindow: 'Current window',
     stashAllWindows: 'All windows',
@@ -836,39 +842,15 @@ function setStashMenuOpen(nextOpen) {
 
   if (isStashMenuOpen) {
     setSettingsModalOpen(false);
-    setSessionPanelOpen(false);
   }
 
   if (trigger) trigger.setAttribute('aria-expanded', isStashMenuOpen ? 'true' : 'false');
   if (trigger) trigger.classList.toggle('is-active', isStashMenuOpen);
   if (menu) menu.style.display = isStashMenuOpen ? 'block' : 'none';
 }
+// Work sessions are rendered directly on the homepage; no floating session panel state needed.
 
-function setSessionPanelOpen(nextOpen) {
-  isSessionPanelOpen = !!nextOpen;
-
-  const trigger = document.getElementById('sessionFabTrigger');
-  const panel = document.getElementById('sessionPanel');
-
-  if (isSessionPanelOpen) {
-    setSettingsModalOpen(false);
-    setStashMenuOpen(false);
-  }
-  if (trigger) trigger.setAttribute('aria-expanded', isSessionPanelOpen ? 'true' : 'false');
-  if (trigger) trigger.classList.toggle('is-active', isSessionPanelOpen);
-  if (panel) panel.style.display = isSessionPanelOpen ? 'flex' : 'none';
-}
-
-async function markSessionsViewed() {
-  try {
-    const sessions = await getTabSessions();
-    await chrome.storage.local.set({ [SESSIONS_VIEWED_COUNT_KEY]: sessions.length });
-    // Re-render UI to hide/update badge
-    await renderSessionsFloatingPanel();
-  } catch (err) {
-    // Ignore storage errors
-  }
-}
+// Session "viewed" state was only relevant to the old floating session panel badge; removed when sessions moved to the homepage.
 
 function setCurrentSettingsPanel(panel) {
   currentSettingsPanel = ['appearance', 'links', 'bookmarks'].includes(panel) ? panel : 'appearance';
@@ -899,7 +881,6 @@ function setSettingsModalOpen(nextOpen) {
 
   if (isSettingsModalOpen) {
     setStashMenuOpen(false);
-    setSessionPanelOpen(false);
     setCurrentSettingsPanel(currentSettingsPanel);
   }
 }
@@ -1446,15 +1427,20 @@ function applyStaticText() {
   const openTabsDomainViewBtn = document.getElementById('openTabsDomainViewBtn');
   const openTabsWindowViewBtn = document.getElementById('openTabsWindowViewBtn');
   const stashTrigger = document.getElementById('stashMenuTrigger');
-  const sessionTrigger = document.getElementById('sessionFabTrigger');
   const settingsTrigger = document.getElementById('settingsModalTrigger');
   const themeTrigger = document.getElementById('themeToggleBtn');
   const stashMenuTitle = document.getElementById('stashMenuTitle');
   const stashMenuHint = document.getElementById('stashMenuHint');
-  const sessionsTitle = document.getElementById('sessionsSectionTitle');
-  const sessionsEmpty = document.getElementById('sessionsEmpty');
+  const workSessionsTitle = document.getElementById('workSessionsTitle');
+  const workSessionsSubtitle = document.getElementById('workSessionsSubtitle');
+  const workSessionsEmpty = document.getElementById('workSessionsEmpty');
+  const openTabsPackBtn = document.getElementById('openTabsPackBtn');
+  const openTabsPackLabel = document.getElementById('openTabsPackLabel');
+  const tabGroupsPackLabel = document.getElementById('tabGroupsPackLabel');
+  const tabGroupsPackBtn = document.getElementById('tabGroupsPackBtn');
+  const workSessionsPackBtn = document.getElementById('workSessionsPackBtn');
+  const workSessionsPackLabel = document.getElementById('workSessionsPackLabel');
   const sessionRecentLabel = document.getElementById('sessionRecentLabel');
-  const sessionPanelCloseBtn = document.querySelector('.session-panel-close');
   const stashCurrentWindowBtn = document.getElementById('stashCurrentWindowBtn');
   const stashAllWindowsBtn = document.getElementById('stashAllWindowsBtn');
   const deferredTitle = document.getElementById('deferredSectionTitle');
@@ -1522,11 +1508,6 @@ function applyStaticText() {
     stashTrigger.setAttribute('aria-label', t('stashToolLabel'));
     stashTrigger.title = '';
   }
-  if (sessionTrigger) {
-    sessionTrigger.setAttribute('data-tooltip', t('sessionToolLabel'));
-    sessionTrigger.setAttribute('aria-label', t('sessionToolLabel'));
-    sessionTrigger.title = '';
-  }
   if (themeTrigger) {
     syncThemeToggleControl();
   }
@@ -1538,17 +1519,30 @@ function applyStaticText() {
     settingsTrigger.setAttribute('aria-label', label);
     settingsTrigger.title = '';
   }
-  if (sessionsTitle) sessionsTitle.textContent = t('sessionsTitle');
-  if (sessionsEmpty) sessionsEmpty.textContent = t('sessionsEmpty');
+  if (workSessionsTitle) workSessionsTitle.textContent = t('workSessionsTitle');
+  if (workSessionsSubtitle) workSessionsSubtitle.textContent = t('workSessionsSubtitle');
+  if (workSessionsEmpty) workSessionsEmpty.textContent = t('workSessionsEmpty');
   if (sessionRecentLabel) sessionRecentLabel.textContent = t('sessionRecent');
-  if (sessionPanelCloseBtn) {
-    sessionPanelCloseBtn.title = t('sessionPanelClose');
-    sessionPanelCloseBtn.setAttribute('aria-label', t('sessionPanelClose'));
+  if (openTabsPackLabel) openTabsPackLabel.textContent = t('openTabsPackButton');
+  if (openTabsPackBtn instanceof HTMLButtonElement) {
+    const openPackLabel = t('openTabsPackButton');
+    openTabsPackBtn.title = openPackLabel;
+    openTabsPackBtn.setAttribute('aria-label', openPackLabel);
+    openTabsPackBtn.setAttribute('data-tooltip', openPackLabel);
   }
-  const sessionPanelPackBtn = document.getElementById('sessionPanelPackBtn');
-  if (sessionPanelPackBtn instanceof HTMLButtonElement) {
-    sessionPanelPackBtn.title = t('sessionPanelPackButton');
-    sessionPanelPackBtn.setAttribute('aria-label', t('sessionPanelPackButton'));
+  if (tabGroupsPackLabel) tabGroupsPackLabel.textContent = t('sessionPanelPackButton');
+  if (tabGroupsPackBtn instanceof HTMLButtonElement) {
+    const tabPackLabel = t('sessionPanelPackButton');
+    tabGroupsPackBtn.title = tabPackLabel;
+    tabGroupsPackBtn.setAttribute('aria-label', tabPackLabel);
+    tabGroupsPackBtn.setAttribute('data-tooltip', tabPackLabel);
+  }
+  if (workSessionsPackLabel) workSessionsPackLabel.textContent = t('sessionPanelPackButton');
+  if (workSessionsPackBtn instanceof HTMLButtonElement) {
+    const workPackLabel = t('sessionPanelPackButton');
+    workSessionsPackBtn.title = workPackLabel;
+    workSessionsPackBtn.setAttribute('aria-label', workPackLabel);
+    workSessionsPackBtn.setAttribute('data-tooltip', workPackLabel);
   }
   if (stashCurrentWindowBtn) {
     stashCurrentWindowBtn.innerHTML = `
@@ -3431,6 +3425,48 @@ async function packAllSessionsAsTabGroup() {
   return nextSession;
 }
 
+async function packOpenTabsAsTabGroup(tabs = []) {
+  const realTabs = tabs.filter(tab => Boolean(tab.url));
+  if (!realTabs.length) {
+    showToast(t('toastSessionTabGroupEmpty'));
+    return null;
+  }
+
+  const seen = new Set();
+  const mergedTabs = [];
+  for (const tab of realTabs) {
+    const url = String(tab.url || '').trim();
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    mergedTabs.push({
+      url,
+      title: String(tab.title || url).trim(),
+      favIconUrl: String(tab.favIconUrl || '').trim(),
+      windowId: Number.isFinite(tab.windowId) ? tab.windowId : 0,
+      order: mergedTabs.length,
+    });
+  }
+
+  if (!mergedTabs.length) {
+    showToast(t('toastSessionTabGroupEmpty'));
+    return null;
+  }
+
+  const defaultName = t('sessionTabGroupDefaultName', new Date().toLocaleString());
+  const nextSession = normalizeTabSession({
+    id: `tabgroup-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    sourceType: 'tab-group',
+    name: defaultName,
+    pinned: false,
+    tabs: mergedTabs,
+  }, 0);
+
+  const sessions = await getTabSessions();
+  await saveTabSessions([nextSession, ...sessions]);
+  return nextSession;
+}
+
 function buildSessionWindowGroups(tabs) {
   const groups = new Map();
 
@@ -3594,7 +3630,6 @@ function registerChromeStateListeners() {
     if (areaName !== 'local') return;
     if (
       !changes[TAB_SESSIONS_STORAGE_KEY] &&
-      !changes[SESSIONS_VIEWED_COUNT_KEY] &&
       !changes[QUICK_LINKS_STORAGE_KEY] &&
       !changes[BOOKMARK_COLLECTIONS_STORAGE_KEY] &&
       !changes[BOOKMARK_BOARD_CONFIG_STORAGE_KEY] &&
@@ -4481,90 +4516,79 @@ function renderTabGroupCard(session) {
     </article>`;
 }
 
+
 async function renderTabGroupsSection() {
   const sectionEl = document.getElementById('tabGroupsSection');
   const listEl = document.getElementById('tabGroupsList');
+  const packBtn = document.getElementById('tabGroupsPackBtn');
   if (!sectionEl || !listEl) return;
 
   const allSessions = await getTabSessions();
   const tabGroups = allSessions.filter(session => session.sourceType === 'tab-group');
 
-  if (tabGroups.length === 0) {
+  if (allSessions.length === 0) {
     sectionEl.hidden = true;
     listEl.innerHTML = '';
+    if (packBtn instanceof HTMLButtonElement) packBtn.disabled = true;
     return;
   }
 
   sectionEl.hidden = false;
-  listEl.innerHTML = tabGroups.map(renderTabGroupCard).join('');
+  if (tabGroups.length === 0) {
+    listEl.innerHTML = '';
+  } else {
+    listEl.innerHTML = tabGroups.map(renderTabGroupCard).join('');
+  }
+  if (packBtn instanceof HTMLButtonElement) packBtn.disabled = allSessions.length < 1;
 }
 
-async function renderSessionsFloatingPanel() {
-  const tools = document.getElementById('floatingTools');
-  const rail = document.getElementById('floatingToolsRail');
-  const stashTrigger = document.getElementById('stashMenuTrigger');
-  const countEl = document.getElementById('sessionsCount');
-  const badgeEl = document.getElementById('sessionFabCount');
-  const listEl = document.getElementById('sessionsList');
-  const trigger = document.getElementById('sessionFabTrigger');
-  const packBtn = document.getElementById('sessionPanelPackBtn');
-  if (!tools || !rail || !stashTrigger || !countEl || !badgeEl || !listEl || !trigger) return;
+async function renderOpenTabsSectionCount(currentWindowId) {
+  const packBtn = document.getElementById('openTabsPackBtn');
+  try {
+    const currentWindow = await chrome.windows.getCurrent();
+    const tabs = (await queryRealTabsSnapshot()).filter(tab => tab.windowId === currentWindow.id);
+    if (packBtn instanceof HTMLButtonElement) packBtn.disabled = tabs.length === 0;
+  } catch (err) {
+    console.warn('[tab-out] Could not update open tabs pack button state:', err);
+    if (packBtn instanceof HTMLButtonElement) packBtn.disabled = true;
+  }
+}
+
+async function renderWorkSessionsSection() {
+  const sectionEl = document.getElementById('workSessionsSection');
+  const listEl = document.getElementById('workSessionsList');
+  const emptyEl = document.getElementById('workSessionsEmpty');
+  const packBtn = document.getElementById('workSessionsPackBtn');
+  const packLabel = document.getElementById('workSessionsPackLabel');
+  if (!sectionEl || !listEl) return;
 
   try {
     const allSessions = await getTabSessions();
-    // Floating panel only shows non-tab-group sessions. Tab groups live on the homepage.
     const sessions = allSessions.filter(session => session.sourceType !== 'tab-group');
-    const canStash = lastRealTabCount > 0;
-    const hasSessions = sessions.length > 0;
 
-    tools.style.display = 'flex';
-    stashTrigger.hidden = !canStash;
-    trigger.hidden = !hasSessions;
-    rail.hidden = !canStash && !hasSessions;
-    if (packBtn instanceof HTMLButtonElement) {
-      // Pack always operates on the full session set, including any tab-group ones.
-      const canPack = allSessions.length >= 1;
-      packBtn.disabled = !canPack;
-      packBtn.title = canPack ? t('sessionPanelPackButton') : t('sessionPanelPackDisabledHint');
-    }
-
-    if (!canStash) {
-      setStashMenuOpen(false);
-    }
-
-    if (!hasSessions) {
-      setSessionPanelOpen(false);
-      countEl.textContent = '';
-      badgeEl.hidden = true;
-      trigger.classList.toggle('has-sessions', false);
+    if (sessions.length === 0) {
+      sectionEl.hidden = true;
       listEl.innerHTML = '';
-    } else {
-      countEl.textContent = t('itemsCount', sessions.length);
-      
-      // Calculate unread/new sessions count
-      const { [SESSIONS_VIEWED_COUNT_KEY]: viewedCount = 0 } = await chrome.storage.local.get(SESSIONS_VIEWED_COUNT_KEY);
-      const unreadCount = Math.max(0, sessions.length - viewedCount);
-      
-      // If panel is open or unreadCount is 0, hide the badge
-      if (isSessionPanelOpen || unreadCount === 0) {
-        badgeEl.hidden = true;
-      } else {
-        badgeEl.textContent = String(unreadCount);
-        badgeEl.hidden = false;
-      }
-      
-      trigger.classList.toggle('has-sessions', true);
-      listEl.innerHTML = sessions.map(session => renderSessionCard(session)).join('');
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (packBtn instanceof HTMLButtonElement) packBtn.disabled = true;
+      if (packLabel) packLabel.textContent = t('sessionPanelPackButton');
+      return;
     }
+
+    sectionEl.hidden = false;
+    listEl.innerHTML = sessions.map(renderSessionCard).join('');
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (packBtn instanceof HTMLButtonElement) packBtn.disabled = allSessions.length < 1;
+    if (packLabel) packLabel.textContent = t('sessionPanelPackButton');
   } catch (err) {
-    console.warn('[tab-out] Could not load tab sessions:', err);
-    rail.hidden = true;
-    stashTrigger.hidden = true;
-    trigger.hidden = true;
-    setStashMenuOpen(false);
-    setSessionPanelOpen(false);
+    console.warn('[tab-out] Could not load work sessions:', err);
+    sectionEl.hidden = true;
+    listEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (packBtn instanceof HTMLButtonElement) packBtn.disabled = true;
   }
 }
+
 
 /* ----------------------------------------------------------------
    SAVED FOR LATER — Render Checklist Column
@@ -4841,6 +4865,9 @@ async function renderStaticDashboard() {
         ? renderOpenTabsWindowSectionCount(windowGroups.length, realTabs.length)
         : renderOpenTabsSectionCount(domainGroups.length, realTabs.length);
     }
+    if (currentOpenTabsView !== 'windows') {
+      renderOpenTabsSectionCount(currentWindowId);
+    }
     if (openTabsMissionsEl) {
       openTabsMissionsEl.style.display = currentOpenTabsView === 'windows' ? 'none' : 'block';
       if (currentOpenTabsView !== 'windows') {
@@ -4865,8 +4892,8 @@ async function renderStaticDashboard() {
   // --- Check for duplicate TabNest tabs ---
   checkTabOutDupes();
 
-  // --- Render floating sessions tool ---
-  await renderSessionsFloatingPanel();
+  // --- Render homepage work sessions ---
+  await renderWorkSessionsSection();
 
   // --- Render "Saved for Later" column ---
   await renderDeferredColumn();
@@ -4988,6 +5015,26 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'close-background-preview') {
+    closeBackgroundPreviewModal();
+    return;
+  }
+
+  if (action === 'confirm-background-preview') {
+    const next = pendingBackgroundImageUrl;
+    closeBackgroundPreviewModal();
+    if (!next) return;
+    try {
+      await saveBackgroundPreference(next);
+      console.info('[tab-out] background image updated from preview, data url length:', next.length);
+      showToast(t('toastBackgroundUpdated'));
+    } catch (err) {
+      console.error('[tab-out] Could not apply background from preview:', err);
+      showToast(t('toastBackgroundFailed'));
+    }
+    return;
+  }
+
   if (action === 'search-bookmark-board') return;
 
   if (action === 'toggle-bookmark-board') {
@@ -5057,17 +5104,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'toggle-session-panel') {
-    const trigger = document.getElementById('sessionFabTrigger');
-    if (!trigger || trigger.hidden) return;
-    const nextOpen = !isSessionPanelOpen;
-    setSessionPanelOpen(nextOpen);
-    if (nextOpen) {
-      await markSessionsViewed();
-    }
-    return;
-  }
-
   if (action === 'close-session-modal') {
     e.preventDefault();
     e.stopPropagation();
@@ -5122,9 +5158,7 @@ document.addEventListener('click', async (e) => {
 
     try {
       const session = await restoreSession(sessionId);
-      setSessionPanelOpen(false);
-      await markSessionsViewed();
-      await refreshDashboardAfterSessionChange(360);
+        await refreshDashboardAfterSessionChange(360);
       if (session.skippedCount > 0) {
         showToast(t('toastSessionRestoredWithSkipped', session.restoredCount, session.skippedCount));
       } else {
@@ -5144,7 +5178,6 @@ document.addEventListener('click', async (e) => {
 
     try {
       await restoreSessionTab(sessionId, url);
-      await markSessionsViewed();
       await refreshDashboardAfterSessionChange(320);
     } catch (err) {
       console.warn('[tab-out] Could not restore session tab:', err);
@@ -5202,15 +5235,25 @@ document.addEventListener('click', async (e) => {
   if (action === 'pack-tab-group') {
     e.preventDefault();
     e.stopPropagation();
-    const sessions = await getTabSessions();
-    if (sessions.length < 1) {
-      showToast(t('toastSessionTabGroupEmpty'));
-      return;
-    }
     const nextSession = await packAllSessionsAsTabGroup();
     if (!nextSession) return;
     await renderDashboard();
-    showToast(t('toastSessionTabGroupPacked', nextSession.tabs.length, sessions.length));
+    showToast(t('toastSessionTabGroupPacked', nextSession.tabs.length));
+    return;
+  }
+
+  if (action === 'pack-current-tabs') {
+    e.preventDefault();
+    e.stopPropagation();
+    const tabs = await queryRealTabsSnapshot();
+    if (!tabs.length) {
+      showToast(t('toastSessionNothingToSave'));
+      return;
+    }
+    const nextSession = await packOpenTabsAsTabGroup(tabs);
+    if (!nextSession) return;
+    await renderDashboard();
+    showToast(t('toastOpenTabsTabGroupPacked', nextSession.tabs.length));
     return;
   }
 
@@ -6230,12 +6273,11 @@ document.addEventListener('compositionend', async (e) => {
 });
 
 document.addEventListener('click', (e) => {
-  if (!isSessionPanelOpen && !isStashMenuOpen) return;
+  if (!isStashMenuOpen) return;
   const tools = document.getElementById('floatingTools');
   if (!tools) return;
   if (tools.contains(e.target)) return;
   if (isStashMenuOpen) setStashMenuOpen(false);
-  setSessionPanelOpen(false);
 });
 
 document.addEventListener('click', (e) => {
@@ -6254,6 +6296,43 @@ document.addEventListener('click', (e) => {
   closeBookmarkCollectionSelectMenu();
 });
 
+let pendingBackgroundImageDataUrl = '';
+
+function openBackgroundPreviewModal(imageDataUrl) {
+  pendingBackgroundImageUrl = imageDataUrl;
+  const backdrop = document.getElementById('backgroundPreviewBackdrop');
+  const stage = document.getElementById('backgroundPreviewStage');
+  const title = document.getElementById('backgroundPreviewTitle');
+  const hint = document.getElementById('backgroundPreviewHint');
+  const confirmBtn = document.getElementById('backgroundPreviewConfirmBtn');
+  const cancelBtn = document.getElementById('backgroundPreviewCancelBtn');
+  if (!backdrop || !stage || !title || !hint || !confirmBtn || !cancelBtn) return;
+
+  title.textContent = t('backgroundPreviewTitle');
+  hint.textContent = t('backgroundPreviewHint');
+  confirmBtn.textContent = t('backgroundPreviewConfirm');
+  cancelBtn.textContent = t('confirmDialogCancel');
+
+  stage.innerHTML = '<img alt="" src="' + imageDataUrl.replace(/"/g, '\"') + '">';
+  stage.classList.remove('is-loaded');
+  backdrop.style.display = 'flex';
+
+  requestAnimationFrame(() => {
+    stage.classList.add('is-loaded');
+  });
+}
+
+function closeBackgroundPreviewModal() {
+  const backdrop = document.getElementById('backgroundPreviewBackdrop');
+  const stage = document.getElementById('backgroundPreviewStage');
+  if (backdrop) backdrop.style.display = 'none';
+  if (stage) {
+    stage.classList.remove('is-loaded');
+    stage.innerHTML = '';
+  }
+  pendingBackgroundImageUrl = '';
+}
+
 document.getElementById('backgroundImageInput')?.addEventListener('change', async (e) => {
   const input = e.target;
   if (!(input instanceof HTMLInputElement)) return;
@@ -6263,9 +6342,7 @@ document.getElementById('backgroundImageInput')?.addEventListener('change', asyn
 
   try {
     const imageDataUrl = await prepareBackgroundImage(file);
-    await saveBackgroundPreference(imageDataUrl);
-    console.info('[tab-out] background image updated, data url length:', imageDataUrl.length);
-    showToast(t('toastBackgroundUpdated'));
+    openBackgroundPreviewModal(imageDataUrl);
   } catch (err) {
     console.error('[tab-out] Could not update background:', {
       message: err && err.message,
@@ -6314,7 +6391,6 @@ document.addEventListener('keydown', (e) => {
   if (confirmBackdrop?.style.display === 'flex') closeConfirmModal();
   if (isSettingsModalOpen) setSettingsModalOpen(false);
   if (isStashMenuOpen) setStashMenuOpen(false);
-  if (isSessionPanelOpen) setSessionPanelOpen(false);
   if (activeQuickLinkMenuId) {
     activeQuickLinkMenuId = '';
     renderQuickLinksSection().catch(err => {

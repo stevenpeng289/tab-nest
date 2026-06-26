@@ -1,3 +1,20 @@
+## [1.6.1] - 2026-06-26 09:16
+
+### Added
+- One-tap stash via the TabNest toolbar icon. Clicking the extension icon in the Chrome toolbar now stashes every real web tab in the current window as a new session, closes those tabs, and lands the user on the TabNest new tab page where the new session is already visible. Implemented in `extension/background.js` via `chrome.action.onClicked`. The toolbar click is a no-op if the current window has no real web tabs.
+- Added a one-tap `Save current tabs as tab group` button on the open-tabs homepage header so users can save the current browser window’s tabs directly without first stashing them as a session.
+
+### Changed
+- Moved saved sessions from the old floating right-side panel onto the homepage as dedicated sections so they are visible without opening a separate panel.
+- Removed dead floating-session-panel code and the unused sessions-viewed-count storage/listener path from `extension/app.js`.
+- The homepage `Save as tab group` action now packs all existing sessions into one new tab-group session with unique URLs only, and restored sessions open in the current browser window instead of spawning a new window.
+- Raised the pack-button gate from "2+ sessions" to "1+ session" so a single recent session can also be saved as a tab group.
+- Switched the quick-link shortcut tooltip behavior to match the existing save-for-later button style: text is only shown on hover/focus, not always occupying space.
+
+### Fixed
+- Fixed a homepage layout break caused by the work-session heading block being closed too early, which left the new pack button outside the header and could distort the section layout.
+- Added the missing work-sessions empty-state element in `extension/index.html` so the section can show its empty state instead of depending on missing markup.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
